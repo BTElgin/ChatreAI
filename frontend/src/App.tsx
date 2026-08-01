@@ -3,9 +3,13 @@ import type { FormEvent } from 'react'
 import './App.css'
 
 interface Message {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'error'
   text: string
 }
+
+const REQUEST_TIMEOUT_MS = 30000
+const FAILURE_MESSAGE =
+  "Something went wrong reaching Cadre AI. Please try again in a moment, or book a call with a strategist directly."
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -21,15 +25,23 @@ function App() {
     setInput('')
     setLoading(true)
 
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
+        signal: controller.signal,
       })
+      if (!response.ok) throw new Error(`Request failed (${response.status})`)
       const data = await response.json()
       setMessages((prev) => [...prev, { role: 'assistant', text: data.message }])
+    } catch {
+      setMessages((prev) => [...prev, { role: 'error', text: FAILURE_MESSAGE }])
     } finally {
+      clearTimeout(timeout)
       setLoading(false)
     }
   }

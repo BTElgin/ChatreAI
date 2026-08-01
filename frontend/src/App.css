@@ -36,6 +36,12 @@
   color: #111827;
 }
 
+.message.error {
+  align-self: flex-start;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 form {
   display: flex;
   gap: 0.5rem;

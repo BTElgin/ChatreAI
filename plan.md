@@ -21,9 +21,9 @@
 --- MVP CUT LINE — everything above this must ship. Everything below is stretch; if time runs out, that's a deliberate, documented call, not a scramble. ---
 
 ## Phase 3 — Escalation & Edge Cases
-- [ ] Handle ambiguous questions, multi-part questions, and questions that are only partially in scope
-- [ ] Keep escalation language consistent — always points toward booking a call with a human strategist
-- [ ] Handle basic API failure states (timeout, error) gracefully in the UI, not a blank screen
+- [x] Handle ambiguous questions, multi-part questions, and questions that are only partially in scope
+- [x] Keep escalation language consistent — always points toward booking a call with a human strategist
+- [x] Handle basic API failure states (timeout, error) gracefully in the UI, not a blank screen
 
 ## Phase 4 — Polish & Redeploy
 - [ ] Clean up error handling and loading states

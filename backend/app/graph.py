@@ -12,13 +12,12 @@ logger = logging.getLogger("cadre_chat")
 
 MODEL = "claude-opus-5"
 
-INTENTS = [
+KNOWN_INTENTS = [
     "about_and_industries",
     "booking",
     "client_portal",
     "ai_maturity_index",
     "llm_and_data_security",
-    "out_of_scope",
 ]
 
 INTENT_KNOWLEDGE_KEYS = {
@@ -33,32 +32,47 @@ INTENT_DESCRIPTIONS = """- about_and_industries: what Cadre AI does, and whether
 - booking: how to book a call with an AI strategist
 - client_portal: how to access the Cadre client portal
 - ai_maturity_index: what the AI Maturity Index is and how to get scored
-- llm_and_data_security: Cadre's approach to LLM selection and data security
-- out_of_scope: anything else, including questions with no basis for an answer in the categories above"""
+- llm_and_data_security: Cadre's approach to LLM selection and data security"""
 
 CLASSIFY_SCHEMA = {
     "type": "object",
-    "properties": {"intent": {"type": "string", "enum": INTENTS}},
-    "required": ["intent"],
+    "properties": {
+        "intents": {
+            "type": "array",
+            "items": {"type": "string", "enum": KNOWN_INTENTS},
+        },
+        "has_unaddressed_scope": {"type": "boolean"},
+    },
+    "required": ["intents", "has_unaddressed_scope"],
     "additionalProperties": False,
 }
+
+CLASSIFY_SYSTEM = f"""Identify which of the following categories the user's message touches. A message can touch zero, one, or several.
+
+{INTENT_DESCRIPTIONS}
+
+Also set has_unaddressed_scope to true if any part of the message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category."""
 
 ANSWER_VOICE = (
     "You are the support assistant for Cadre AI, a B2B AI strategy and implementation "
     "consultancy. Voice: professional but approachable, not overly casual and not stiff. "
     "Answer only using the knowledge below. Do not invent services, pricing, policies, or "
-    "URLs that are not present in it."
+    "URLs that are not present in it. If the knowledge only covers part of what was asked, "
+    "answer that part and leave the rest alone rather than guessing."
 )
 
-ESCALATION_MESSAGE = (
-    "That's outside what I can help with directly. The best next step is to book a call "
-    "with a Cadre AI strategist, who can dig into specifics with you."
+ESCALATION_CTA = "book a call with a Cadre AI strategist, who can dig into specifics with you"
+ESCALATION_MESSAGE = f"That's outside what I can help with directly. The best next step is to {ESCALATION_CTA}."
+PARTIAL_ESCALATION_NOTE = (
+    f"\n\nOne part of your question is outside what I can help with directly here — "
+    f"for that, the best next step is to {ESCALATION_CTA}."
 )
 
 
 class ChatState(TypedDict, total=False):
     message: str
-    intent: str
+    intents: list[str]
+    has_unaddressed_scope: bool
     knowledge_used: list[str]
     draft_answer: Optional[str]
     escalate: bool
@@ -74,28 +88,34 @@ def classify(state: ChatState) -> ChatState:
     try:
         response = _client().messages.create(
             model=MODEL,
-            max_tokens=100,
+            max_tokens=150,
             output_config={
                 "effort": "low",
                 "format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA},
             },
-            system=f"Classify the user's message into exactly one category:\n{INTENT_DESCRIPTIONS}",
+            system=CLASSIFY_SYSTEM,
             messages=[{"role": "user", "content": state["message"]}],
         )
         text = next(b.text for b in response.content if b.type == "text")
-        intent = json.loads(text)["intent"]
+        data = json.loads(text)
+        intents = [i for i in data["intents"] if i in KNOWN_INTENTS]
+        has_unaddressed_scope = bool(data["has_unaddressed_scope"])
     except Exception:
-        logger.exception("classify failed, defaulting to out_of_scope")
-        intent = "out_of_scope"
-    logger.info("classify: intent=%s", intent)
-    return {"intent": intent}
+        logger.exception("classify failed, defaulting to escalate")
+        intents = []
+        has_unaddressed_scope = True
+    logger.info("classify: intents=%s has_unaddressed_scope=%s", intents, has_unaddressed_scope)
+    return {"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}
 
 
 def answer(state: ChatState) -> ChatState:
-    intent = state["intent"]
-    keys = INTENT_KNOWLEDGE_KEYS.get(intent)
-    if not keys:
+    intents = state["intents"]
+    if not intents:
         return {"draft_answer": None, "knowledge_used": []}
+
+    keys = []
+    for intent in intents:
+        keys.extend(k for k in INTENT_KNOWLEDGE_KEYS[intent] if k not in keys)
 
     knowledge = load_knowledge()
     scoped_knowledge = {k: knowledge[k] for k in keys if k in knowledge}
@@ -110,19 +130,28 @@ def answer(state: ChatState) -> ChatState:
         )
         draft = next(b.text for b in response.content if b.type == "text")
     except Exception:
-        logger.exception("answer failed for intent=%s", intent)
-    logger.info("answer: intent=%s knowledge_used=%s ok=%s", intent, keys, draft is not None)
+        logger.exception("answer failed for intents=%s", intents)
+    logger.info("answer: intents=%s knowledge_used=%s ok=%s", intents, keys, draft is not None)
     return {"draft_answer": draft, "knowledge_used": keys}
 
 
 def escalation_check(state: ChatState) -> ChatState:
-    escalate = state["intent"] == "out_of_scope" or not state.get("draft_answer")
-    logger.info("escalation_check: intent=%s escalate=%s", state["intent"], escalate)
+    escalate = not state["intents"] or not state.get("draft_answer")
+    logger.info(
+        "escalation_check: intents=%s has_unaddressed_scope=%s escalate=%s",
+        state["intents"],
+        state["has_unaddressed_scope"],
+        escalate,
+    )
     return {"escalate": escalate}
 
 
 def respond(state: ChatState) -> ChatState:
-    response = ESCALATION_MESSAGE if state["escalate"] else state["draft_answer"]
+    if state["escalate"]:
+        return {"response": ESCALATION_MESSAGE}
+    response = state["draft_answer"]
+    if state["has_unaddressed_scope"]:
+        response = f"{response}{PARTIAL_ESCALATION_NOTE}"
     return {"response": response}
 
 
