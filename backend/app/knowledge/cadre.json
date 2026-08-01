@@ -1,0 +1,64 @@
+{
+  "company": {
+    "name": "Cadre AI",
+    "description": "Cadre AI is a B2B AI strategy and implementation consultancy. We work as an extension of a client's team: assessing where AI can move the needle, then building and shipping the tools and agents that do it, staying embedded through delivery rather than handing off a report and leaving."
+  },
+  "services": [
+    {
+      "name": "AI Strategy & Maturity Assessment",
+      "description": "A structured evaluation of where an organization stands on AI adoption today, and a prioritized roadmap for what to do next. Produces the AI Maturity Index score."
+    },
+    {
+      "name": "Embedded AI Delivery",
+      "description": "A fractional, embedded team of strategists and engineers who design, build, and ship AI tools and agents directly inside a client's operations, not a report handed off at the end."
+    },
+    {
+      "name": "Custom Agent & Automation Build",
+      "description": "Purpose-built AI agents and automations for a specific workflow, such as support, ops, or internal tooling, designed with fallback logic so they escalate rather than guess when uncertain."
+    },
+    {
+      "name": "LLM Selection & Data Security Advisory",
+      "description": "Guidance on which model or models fit a given workload, and how to handle data security, retention, and compliance when integrating LLMs into existing systems."
+    },
+    {
+      "name": "Team Enablement",
+      "description": "Training and playbooks so a client's own team can extend and maintain what Cadre builds, rather than staying dependent on Cadre."
+    }
+  ],
+  "industries_served": {
+    "summary": "Cadre AI works across industries. Every engagement starts with a scoping call to confirm fit before any commitment.",
+    "examples": [
+      "Healthcare",
+      "Financial services",
+      "SaaS and software",
+      "Professional services",
+      "Manufacturing and logistics",
+      "Retail and e-commerce"
+    ],
+    "note": "Regulated industries, such as healthcare and financial services, go through an additional security and compliance review before an engagement kicks off."
+  },
+  "ai_maturity_index": {
+    "what_it_is": "A lightweight scoring framework that places an organization on a four-tier scale for AI readiness: Exploring, Piloting, Scaling, Embedded. It scores across five dimensions: data readiness, tooling, process integration, organizational buy-in, and security posture.",
+    "how_to_get_scored": "Book a scoping call with an AI strategist. The initial assessment is a no-cost, roughly 45-minute conversation, and it does not require an engagement commitment.",
+    "tiers": {
+      "Exploring": "Early conversations, no production AI use yet.",
+      "Piloting": "One or more narrow AI pilots running, results not yet proven at scale.",
+      "Scaling": "AI tools in production for at least one core workflow, expanding to others.",
+      "Embedded": "AI is a standard part of how the organization operates, with clear ownership and measurement."
+    }
+  },
+  "llm_and_data_security": {
+    "model_selection_approach": "Cadre is model-agnostic. Model choice is driven by the task: latency and cost for high-volume workflows, reasoning depth for complex judgment calls, and data sensitivity for anything touching regulated or proprietary data. Cadre defaults to retrieval-based or staged-checkpoint approaches over full model autonomy for anything high-stakes, favoring trust over raw capability.",
+    "data_handling": "Client data is never used to train third-party models. Data is encrypted in transit and at rest. Model providers are selected in part on their data retention and limited-retention options. Standard engagements include an NDA before any client data is shared.",
+    "escalation_principle": "Every AI system Cadre builds follows the same rule: escalate to a human rather than guess when confidence is low. This is a design principle across every engagement, not just how the support bot itself behaves."
+  },
+  "booking": {
+    "how_to_book": "Book a call with an AI strategist from the 'Book a Call' page on the Cadre AI website, or ask here and the bot will point to the scheduling link. Initial calls run about 30 to 45 minutes and are free.",
+    "what_to_expect": "The first call is a scoping conversation covering current state and goals, and whether Cadre is a fit. It is not a sales pitch."
+  },
+  "client_portal": {
+    "url": "portal.cadreai.com",
+    "purpose": "Existing clients use the portal to track active AI tools and agents, project status, and measured results, such as ticket reduction or time saved.",
+    "access": "Portal access is provisioned by the client's engagement lead once a project kicks off. Anyone without access, or locked out, should be escalated rather than guessing at credentials."
+  }
+}

@@ -63,6 +63,7 @@ Professional but approachable — matches a B2B consultancy talking to business 
 - No RAG — knowledge base is static and small by design; noted above as the scaling path if needed
 - No persistent memory across sessions
 - Minimal UI polish — functionality prioritized over visual design given the time budget
+- `knowledge/cadre.json` content (services, AI Maturity Index tiers, portal URL) is plausible content written for this assessment, not pulled from real Cadre AI marketing collateral — no source brief with those specifics was available while building
 
 ## Test before calling any phase done
 Manually run these six scenarios end to end:

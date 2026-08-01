@@ -1,15 +1,15 @@
 # plan.md
 
 ## Phase 0 — Skeleton & Deploy (do this first, before any real logic)
-- [ ] Scaffold the FastAPI backend with one endpoint (`/api/chat`) that just echoes input back, and a minimal React frontend
-- [ ] Wire the build so FastAPI serves the built React static files — one service, one deploy target
-- [ ] Deploy to Render immediately — confirm the public URL works before building anything else
-- [ ] Push the initial commit to GitHub
+- [x] Scaffold the FastAPI backend with one endpoint (`/api/chat`) that just echoes input back, and a minimal React frontend
+- [x] Wire the build so FastAPI serves the built React static files — one service, one deploy target
+- [x] Deploy to Render immediately — confirm the public URL works before building anything else — https://chatreai.onrender.com
+- [x] Push the initial commit to GitHub
 
 ## Phase 1 — Knowledge Base & System Prompt
-- [ ] Write `knowledge/cadre.json` covering: services, industries served, AI Maturity Index, LLM/data-security approach, booking process, portal access
-- [ ] Build the system prompt assembly: base instructions + injected knowledge + scope/escalation rules
-- [ ] Wire `/api/chat` to call the Anthropic API with the assembled prompt
+- [x] Write `knowledge/cadre.json` covering: services, industries served, AI Maturity Index, LLM/data-security approach, booking process, portal access
+- [x] Build the system prompt assembly: base instructions + injected knowledge + scope/escalation rules
+- [x] Wire `/api/chat` to call the Anthropic API with the assembled prompt
 
 *Subagent opportunity: the knowledge file content and the React chat UI scaffold (Phase 2) don't depend on each other — good candidate to split.*
 
