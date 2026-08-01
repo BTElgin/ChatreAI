@@ -69,7 +69,16 @@ Professional but approachable — matches a B2B consultancy talking to business 
 - Minimal UI polish — functionality prioritized over visual design given the time budget
 - `knowledge/cadre.json` content (services, AI Maturity Index tiers, portal URL) is plausible content written for this assessment, not pulled from real Cadre AI marketing collateral — no source brief with those specifics was available while building
 
-## Test before calling any phase done
+## Automated tests
+`backend/tests/` — pytest coverage for the LangGraph nodes (`classify`, `answer`, `escalation_check`, `respond`, `run_chat`) and the `/api/chat` endpoint, including the 6 core scenarios below and the Phase 3 edge cases (multi-part, partial-scope, ambiguous, simulated API failure). The Anthropic client is mocked throughout, so the suite is fast, free, deterministic, and needs no `ANTHROPIC_API_KEY`. It regression-tests the deterministic plumbing — escalation logic, knowledge scoping, request validation, error fallback — not Claude's actual classification judgment; that's what the manual pass below is for.
+
+```
+cd backend
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+```
+
+## Manual scenario pass (real Claude — before calling any phase done)
 Manually run these six scenarios end to end:
 1. "What does Cadre AI do, and do you work with [industry]?"
 2. "How do I book a call with an AI strategist?"

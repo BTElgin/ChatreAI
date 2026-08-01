@@ -53,12 +53,14 @@
 - [x] Re-run the 6 core scenarios to confirm single-turn behavior is unaffected
 
 ## Phase 6 — Automated Test Suite
-- [ ] Add pytest and test dependencies to the backend
-- [ ] Unit tests for the `classify` / `answer` / `escalation_check` graph nodes, with the Anthropic client mocked so tests don't depend on a live API key or burn real tokens
-- [ ] Integration tests for `/api/chat` covering the 6 core scenarios plus the Phase 3 edge cases (multi-part, partial-scope, ambiguous, simulated API failure)
-- [ ] Document how to run the suite (README or CLAUDE.md) so it's part of the normal workflow, not a one-off
+- [x] Add pytest and test dependencies to the backend — `requirements-dev.txt` + `pytest.ini`, kept separate from `requirements.txt` so Render's build doesn't install test tooling
+- [x] Unit tests for the `classify` / `answer` / `escalation_check` / `respond` / `run_chat` graph nodes, with the Anthropic client mocked so tests don't depend on a live API key or burn real tokens (19 tests, `backend/tests/test_graph.py`)
+- [x] Integration tests for `/api/chat` covering the 6 core scenarios plus the Phase 3 edge cases (multi-part, partial-scope, ambiguous, simulated API failure), plus request validation and history threading (14 tests, `backend/tests/test_api.py`)
+- [x] Document how to run the suite — new "Automated tests" section in CLAUDE.md
 
-*If time allows: wire this into GitHub Actions so it runs on every push — not required, just the natural next step once the suite exists.*
+33 tests, runs in well under a second, no API key required.
+
+*If time allows: wire this into GitHub Actions so it runs on every push — not required, just the natural next step once the suite exists. Not done here — left as the noted next step, per this phase's own framing.*
 
 ## Phase 7 — Real Booking Integration
 - [ ] Set up a Google Calendar Appointment Schedule (Google's own public booking-page feature) to stand in for a real Cadre AI strategist's calendar — there's no real Cadre account to connect to, so this is a working booking flow, not a live integration with an actual Cadre system
