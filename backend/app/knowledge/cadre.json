@@ -1,41 +1,40 @@
 {
   "company": {
     "name": "Cadre AI",
-    "description": "Cadre AI is a B2B AI strategy and implementation consultancy. We work as an extension of a client's team: assessing where AI can move the needle, then building and shipping the tools and agents that do it, staying embedded through delivery rather than handing off a report and leaving."
+    "description": "Cadre AI turns AI from buzzword into bottom-line growth: AI strategy, workflow automation, and training that drive measurable business impact. Cadre works as an extension of a client's team, identifying where AI actually moves the needle and building it, staying embedded through delivery rather than handing off a report and leaving."
   },
   "services": [
     {
-      "name": "AI Strategy & Maturity Assessment",
-      "description": "A structured evaluation of where an organization stands on AI adoption today, and a prioritized roadmap for what to do next. Produces the AI Maturity Index score."
+      "name": "AI Strategy",
+      "description": "Discover how AI can improve your business — a structured strategy engagement that identifies where AI actually moves the needle for your organization and produces a prioritized roadmap, including the AI Maturity Index score."
     },
     {
-      "name": "Embedded AI Delivery",
-      "description": "A fractional, embedded team of strategists and engineers who design, build, and ship AI tools and agents directly inside a client's operations, not a report handed off at the end."
+      "name": "AI Leadership & Facilitation",
+      "description": "Transform your team into AI champions through hands-on leadership training and facilitation, so AI adoption sticks beyond the engagement."
     },
     {
-      "name": "Custom Agent & Automation Build",
-      "description": "Purpose-built AI agents and automations for a specific workflow, such as support, ops, or internal tooling, designed with fallback logic so they escalate rather than guess when uncertain."
+      "name": "AI Engineering",
+      "description": "Orchestrate intelligent processes across your business — the hands-on engineering work that turns strategy into working systems, including how models and data are selected and secured."
     },
     {
-      "name": "LLM Selection & Data Security Advisory",
-      "description": "Guidance on which model or models fit a given workload, and how to handle data security, retention, and compliance when integrating LLMs into existing systems."
-    },
-    {
-      "name": "Team Enablement",
-      "description": "Training and playbooks so a client's own team can extend and maintain what Cadre builds, rather than staying dependent on Cadre."
+      "name": "AI Agents",
+      "description": "Autonomous workers that handle your most complex tasks, built with fallback logic so they escalate rather than guess when uncertain."
     }
   ],
   "industries_served": {
     "summary": "Cadre AI works across industries. Every engagement starts with a scoping call to confirm fit before any commitment.",
     "examples": [
-      "Healthcare",
-      "Financial services",
-      "SaaS and software",
-      "Professional services",
-      "Manufacturing and logistics",
-      "Retail and e-commerce"
+      "Professional Services",
+      "Private Equity",
+      "Real Estate",
+      "Financial Services",
+      "Mortgage & Lending",
+      "Construction",
+      "Retail & E-commerce",
+      "Manufacturing & Logistics",
+      "Hospitality"
     ],
-    "note": "Regulated industries, such as healthcare and financial services, go through an additional security and compliance review before an engagement kicks off."
+    "note": "Regulated industries, such as financial services and mortgage & lending, go through an additional security and compliance review before an engagement kicks off."
   },
   "ai_maturity_index": {
     "what_it_is": "A lightweight scoring framework that places an organization on a four-tier scale for AI readiness: Exploring, Piloting, Scaling, Embedded. It scores across five dimensions: data readiness, tooling, process integration, organizational buy-in, and security posture.",
@@ -52,6 +51,43 @@
     "data_handling": "Client data is never used to train third-party models. Data is encrypted in transit and at rest. Model providers are selected in part on their data retention and limited-retention options. Standard engagements include an NDA before any client data is shared.",
     "escalation_principle": "Every AI system Cadre builds follows the same rule: escalate to a human rather than guess when confidence is low. This is a design principle across every engagement, not just how the support bot itself behaves."
   },
+  "pricing": {
+    "approach": "Cadre AI doesn't publish fixed pricing. Engagements are scoped and quoted based on what you're trying to accomplish, team size, and complexity, so the real number depends on the work. The reliable way to get an actual figure is a scoping call with an AI strategist — that conversation is free and comes with no commitment."
+  },
+  "case_studies": {
+    "summary": "Cadre AI publishes real, client-anonymized case studies with quantified results across industries. A few examples:",
+    "examples": [
+      {
+        "industry": "Professional Services",
+        "result": "45 hours saved monthly with an AI lead-processing agent — 1,500+ emails processed and 650+ leads handled monthly across 5 branches."
+      },
+      {
+        "industry": "Manufacturing & Logistics",
+        "result": "220 hours saved monthly with AI supplier automation — cut processing time by 60% across 200-300 supplier confirmations processed daily."
+      },
+      {
+        "industry": "Manufacturing & Logistics",
+        "result": "8,000+ hours saved annually with AI proposal automation — cut proposal processing time from 1-2 days down to about 20 minutes."
+      },
+      {
+        "industry": "Hospitality",
+        "result": "$420,000 saved annually with an AI-powered booking visibility system that eliminated same-day double-booking incidents."
+      },
+      {
+        "industry": "Real Estate",
+        "result": "57% increase in daily efficiency with an AI scheduling system — 50% more inspection capacity and a 72% cut in fuel expenses through optimized routing."
+      },
+      {
+        "industry": "Manufacturing & Logistics",
+        "result": "3,500 hours saved annually with an AI email agent — reduced email management from about 9 hours a week to roughly 55 minutes."
+      },
+      {
+        "industry": "Financial Services / Mortgage & Lending",
+        "result": "2,500 hours saved annually with a Loan Intelligence Assistant used daily by 27 loan officers, handling 3,960+ chat inquiries in its first 90 days."
+      }
+    ],
+    "note": "Full write-ups, including named client quotes where shared, are public on the Cadre AI website's Case Studies page."
+  },
   "booking": {
     "url": "(injected at runtime from the BOOKING_URL environment variable)",
     "how_to_book": "Book a call with an AI strategist directly using the scheduling link (the url field) — pick an open time and it's confirmed instantly, no back-and-forth needed. Initial calls run about 30 to 45 minutes and are free.",
@@ -59,7 +95,7 @@
   },
   "client_portal": {
     "url": "portal.cadreai.com",
-    "purpose": "Existing clients use the portal to track active AI tools and agents, project status, and measured results, such as ticket reduction or time saved.",
+    "purpose": "A centralized portal to track tools, agents, training, and results, so clients can stay aligned, stay accountable, and scale what's working.",
     "access": "Portal access is provisioned by the client's engagement lead once a project kicks off. Anyone without access, or locked out, should be escalated rather than guessing at credentials."
   }
 }

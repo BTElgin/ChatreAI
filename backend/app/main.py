@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.config import BOOKING_URL
-from app.graph import ESCALATION_MESSAGE, run_chat
+from app.graph import ESCALATION_MESSAGE, STARTER_PROMPTS, run_chat
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -28,15 +28,17 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     message: str
+    suggestions: list[str] = []
 
 
 class ConfigResponse(BaseModel):
     bookingUrl: str
+    starterPrompts: list[str]
 
 
 @app.get("/api/config", response_model=ConfigResponse)
 async def config() -> ConfigResponse:
-    return ConfigResponse(bookingUrl=BOOKING_URL)
+    return ConfigResponse(bookingUrl=BOOKING_URL, starterPrompts=STARTER_PROMPTS)
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -49,7 +51,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     try:
         state = run_chat(current.text, history_dicts)
-        return ChatResponse(message=state["response"])
+        return ChatResponse(message=state["response"], suggestions=state.get("suggestions", []))
     except Exception:
         logger.exception("chat endpoint failed unexpectedly")
         return ChatResponse(message=ESCALATION_MESSAGE)

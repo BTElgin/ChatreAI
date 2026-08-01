@@ -18,6 +18,8 @@ function App() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [bookingUrl, setBookingUrl] = useState<string | null>(null)
+  const [starterPrompts, setStarterPrompts] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -28,18 +30,22 @@ function App() {
   useEffect(() => {
     fetch('/api/config')
       .then((response) => response.json())
-      .then((data) => setBookingUrl(data.bookingUrl))
+      .then((data) => {
+        setBookingUrl(data.bookingUrl)
+        setStarterPrompts(data.starterPrompts ?? [])
+      })
       .catch(() => {})
   }, [])
 
-  async function sendMessage(event: FormEvent) {
-    event.preventDefault()
-    const text = input.trim()
+  async function sendMessage(event: FormEvent | null, overrideText?: string) {
+    event?.preventDefault()
+    const text = (overrideText ?? input).trim()
     if (!text || loading) return
 
     const outgoing = [...messages, { role: 'user' as const, text }]
     setMessages(outgoing)
     setInput('')
+    setSuggestions([])
     setLoading(true)
 
     const controller = new AbortController()
@@ -55,6 +61,7 @@ function App() {
       if (!response.ok) throw new Error(`Request failed (${response.status})`)
       const data = await response.json()
       setMessages((prev) => [...prev, { role: 'assistant', text: data.message }])
+      setSuggestions(data.suggestions ?? [])
     } catch {
       setMessages((prev) => [...prev, { role: 'error', text: FAILURE_MESSAGE }])
     } finally {
@@ -63,6 +70,9 @@ function App() {
       inputRef.current?.focus()
     }
   }
+
+  const chips = messages.length === 0 ? starterPrompts : suggestions
+  const showChips = chips.length > 0 && !loading
 
   return (
     <div className="chat">
@@ -93,6 +103,15 @@ function App() {
         )}
         <div ref={bottomRef} />
       </div>
+      {showChips && (
+        <div className="chip-row" aria-label="Suggested questions">
+          {chips.map((chip) => (
+            <button key={chip} type="button" className="chip" onClick={() => sendMessage(null, chip)}>
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
       <form onSubmit={sendMessage}>
         <input
           ref={inputRef}

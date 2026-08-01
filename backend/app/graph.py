@@ -11,8 +11,15 @@ from app.prompt import load_knowledge
 
 logger = logging.getLogger("cadre_chat")
 
-MODEL = "claude-opus-5"
+# Model routing: cheap/fast Haiku for classification and suggestion generation
+# (simple, structured, low-stakes tasks), Opus reserved for the actual
+# knowledge-grounded answer (the one place quality genuinely matters).
+CLASSIFY_MODEL = "claude-haiku-4-5"
+SUGGEST_MODEL = "claude-haiku-4-5"
+ANSWER_MODEL = "claude-opus-5"
+
 HISTORY_WINDOW = 20  # last N messages (~10 exchanges) kept as context; older turns drop off
+MAX_SUGGESTIONS = 3
 
 KNOWN_INTENTS = [
     "about_and_industries",
@@ -20,6 +27,8 @@ KNOWN_INTENTS = [
     "client_portal",
     "ai_maturity_index",
     "llm_and_data_security",
+    "pricing",
+    "case_studies",
 ]
 
 INTENT_KNOWLEDGE_KEYS = {
@@ -28,13 +37,29 @@ INTENT_KNOWLEDGE_KEYS = {
     "client_portal": ["client_portal"],
     "ai_maturity_index": ["ai_maturity_index"],
     "llm_and_data_security": ["llm_and_data_security"],
+    "pricing": ["pricing"],
+    "case_studies": ["case_studies"],
 }
 
 INTENT_DESCRIPTIONS = """- about_and_industries: what Cadre AI does, and whether it serves the asker's industry
-- booking: how to book a call with an AI strategist
+- booking: how to book a call with an AI strategist, or how to get started
 - client_portal: how to access the Cadre client portal
 - ai_maturity_index: what the AI Maturity Index is and how to get scored
-- llm_and_data_security: Cadre's approach to LLM selection and data security"""
+- llm_and_data_security: Cadre's approach to LLM selection and data security
+- pricing: how much Cadre's services cost, or how pricing works
+- case_studies: examples of results Cadre has delivered for clients, case studies, success stories"""
+
+# Starter prompts shown in the UI before a conversation begins. Kept here so
+# backend and frontend stay in sync on what the "common inquiries" are.
+STARTER_PROMPTS = [
+    "What does Cadre AI do?",
+    "How do I get started?",
+    "What do your services cost?",
+    "What's the AI Maturity Index?",
+    "Do you have case studies?",
+    "How do I book a strategy call?",
+    "What industries do you work with?",
+]
 
 CLASSIFY_SCHEMA = {
     "type": "object",
@@ -72,6 +97,25 @@ PARTIAL_ESCALATION_NOTE = (
     f"for that, the best next step is to {ESCALATION_CTA}."
 )
 
+SUGGESTIONS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "suggestions": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": ["suggestions"],
+    "additionalProperties": False,
+}
+
+SUGGEST_SYSTEM = f"""Based on the conversation so far, suggest up to {MAX_SUGGESTIONS} short follow-up questions the user might naturally ask next about Cadre AI. Phrase each as a question in the user's own voice, under 8 words where possible.
+
+Only suggest questions that fit within these topics:
+{INTENT_DESCRIPTIONS}
+
+If the conversation just escalated (nothing in scope matched the last question), suggest questions that pivot back to something answerable instead of repeating the same escalated topic. Return fewer than {MAX_SUGGESTIONS} suggestions, or an empty list, if nothing natural fits — don't force it."""
+
 
 class ChatState(TypedDict, total=False):
     message: str
@@ -82,6 +126,7 @@ class ChatState(TypedDict, total=False):
     draft_answer: Optional[str]
     escalate: bool
     response: str
+    suggestions: list[str]
 
 
 @functools.lru_cache
@@ -96,12 +141,9 @@ def _conversation(state: ChatState) -> list[dict]:
 def classify(state: ChatState) -> ChatState:
     try:
         response = _client().messages.create(
-            model=MODEL,
+            model=CLASSIFY_MODEL,
             max_tokens=150,
-            output_config={
-                "effort": "low",
-                "format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA},
-            },
+            output_config={"format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA}},
             system=CLASSIFY_SYSTEM,
             messages=_conversation(state),
         )
@@ -131,7 +173,7 @@ def answer(state: ChatState) -> ChatState:
     draft = None
     try:
         response = _client().messages.create(
-            model=MODEL,
+            model=ANSWER_MODEL,
             max_tokens=1024,
             output_config={"effort": "low"},
             system=f"{ANSWER_VOICE}\n\n## Knowledge\n\n{json.dumps(scoped_knowledge, indent=2)}",
@@ -164,18 +206,47 @@ def respond(state: ChatState) -> ChatState:
     return {"response": response}
 
 
+def suggest_followups(state: ChatState) -> ChatState:
+    # Structured outputs reject a request ending in an `assistant` message (it
+    # looks like a disallowed prefill), so the just-given answer is folded into
+    # a final `user`-role message instead of appended as its own assistant turn.
+    exchange_summary = (
+        f'The user just asked: "{state["message"]}"\n'
+        f'The assistant just answered: "{state["response"]}"\n\n'
+        "Suggest natural follow-up questions."
+    )
+    conversation = [*state.get("history", []), {"role": "user", "content": exchange_summary}]
+    suggestions = []
+    try:
+        response = _client().messages.create(
+            model=SUGGEST_MODEL,
+            max_tokens=150,
+            output_config={"format": {"type": "json_schema", "schema": SUGGESTIONS_SCHEMA}},
+            system=SUGGEST_SYSTEM,
+            messages=conversation,
+        )
+        text = next(b.text for b in response.content if b.type == "text")
+        suggestions = list(json.loads(text)["suggestions"])[:MAX_SUGGESTIONS]
+    except Exception:
+        logger.exception("suggest_followups failed, returning no suggestions")
+    logger.info("suggest_followups: count=%d", len(suggestions))
+    return {"suggestions": suggestions}
+
+
 def build_graph():
     graph = StateGraph(ChatState)
     graph.add_node("classify", classify)
     graph.add_node("answer", answer)
     graph.add_node("escalation_check", escalation_check)
     graph.add_node("respond", respond)
+    graph.add_node("suggest_followups", suggest_followups)
 
     graph.set_entry_point("classify")
     graph.add_edge("classify", "answer")
     graph.add_edge("answer", "escalation_check")
     graph.add_edge("escalation_check", "respond")
-    graph.add_edge("respond", END)
+    graph.add_edge("respond", "suggest_followups")
+    graph.add_edge("suggest_followups", END)
 
     return graph.compile()
 

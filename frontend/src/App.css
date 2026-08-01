@@ -158,6 +158,31 @@ body {
   font-style: italic;
 }
 
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.chip {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: white;
+  color: var(--cadre-black);
+  border: 1px solid rgba(12, 4, 7, 0.12);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--cadre-black);
+  color: white;
+  border-color: var(--cadre-black);
+}
+
 form {
   display: flex;
   gap: 0.5rem;
