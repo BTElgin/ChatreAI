@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
@@ -15,6 +15,12 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault()
@@ -43,6 +49,7 @@ function App() {
     } finally {
       clearTimeout(timeout)
       setLoading(false)
+      inputRef.current?.focus()
     }
   }
 
@@ -55,12 +62,20 @@ function App() {
             {message.text}
           </div>
         ))}
+        {loading && (
+          <div className="message assistant loading" aria-live="polite">
+            Thinking…
+          </div>
+        )}
+        <div ref={bottomRef} />
       </div>
       <form onSubmit={sendMessage}>
         <input
+          ref={inputRef}
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Type a message..."
+          disabled={loading}
         />
         <button type="submit" disabled={loading}>
           Send

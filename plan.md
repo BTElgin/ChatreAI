@@ -26,13 +26,13 @@
 - [x] Handle basic API failure states (timeout, error) gracefully in the UI, not a blank screen
 
 ## Phase 4 — Polish & Redeploy
-- [ ] Clean up error handling and loading states
-- [ ] Final commit, redeploy, confirm the public URL reflects the latest build
-- [ ] Re-run all 6 test scenarios against the deployed URL, not just localhost
+- [x] Clean up error handling and loading states
+- [x] Final commit, redeploy, confirm the public URL reflects the latest build
+- [x] Re-run all 6 test scenarios against the deployed URL, not just localhost
 
 ## Stretch — only if time remains, note explicitly if skipped
-- [ ] Log each interaction — classified intent, which knowledge entry answered it (if any), and every escalation with why. Same observability lens used to measure a 45% ticket reduction on a past production AI system. Even console logging counts here; the point is traceability, not infrastructure.
-- [ ] Note 2-3 specific "if I had more time" items here for the Decisions & Trade-offs segment — e.g. moving the knowledge base to embeddings + retrieval at scale, real CRM/booking integration, session persistence
+- [x] Log each interaction — classified intent, which knowledge entry answered it (if any), and every escalation with why. Same observability lens used to measure a 45% ticket reduction on a past production AI system. Even console logging counts here; the point is traceability, not infrastructure. — done in Phase 2 as part of the graph itself: `classify`, `answer`, and `escalation_check` each log via `logger.info` (intents matched, knowledge keys used, escalate decision), console-only, no infra added.
+- [ ] Note 2-3 specific "if I had more time" items here for the Decisions & Trade-offs segment — e.g. moving the knowledge base to embeddings + retrieval at scale, real CRM/booking integration, session persistence — skipped; substance already covered by the Known limitations section in CLAUDE.md
 
 *Subagent opportunity: the 6-scenario test pass can run as its own subagent once Phase 2 is wired, freeing up the main thread to keep building.*
 

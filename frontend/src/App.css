@@ -42,6 +42,11 @@
   color: #991b1b;
 }
 
+.message.loading {
+  color: #6b7280;
+  font-style: italic;
+}
+
 form {
   display: flex;
   gap: 0.5rem;
@@ -53,7 +58,17 @@ input {
   font-size: 1rem;
 }
 
+input:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
 button {
   padding: 0.5rem 1rem;
   font-size: 1rem;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
