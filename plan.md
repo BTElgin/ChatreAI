@@ -75,3 +75,8 @@
 - [ ] Confirm answers stay grounded (no fabrication) and the 6 core scenarios still pass with retrieval in place of the fixed intent → knowledge-key mapping
 
 *Subagent opportunity: Phases 5-8 are largely independent of each other (memory, tests, booking, retrieval each touch different parts of the system) — reasonable to parallelize rather than doing them strictly in order.*
+
+## Phase 9 — Brand Alignment (unplanned, requested after Phase 7)
+- [x] Pull real design tokens from cadreai.com's live stylesheet — colors, fonts, button/card shapes — rather than guessing at a brand palette
+- [x] Rebrand the chat UI to match: sand/cream background (`#faf9f6`/`#f2efe4`), Inter Tight headline with their red-accent-on-part-of-the-title treatment, Inter body text, black pill buttons (Send, Book a Call), red user bubbles, cream assistant bubbles with a hairline border, blue in-message links — error state kept visually distinct from both
+- [x] Verify in a real browser, locally and on the live deployed URL — no console errors, no regression to the backend (36/36 tests still pass, this was a frontend-only change)

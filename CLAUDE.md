@@ -45,7 +45,7 @@ Professional but approachable — matches a B2B consultancy talking to business 
 - FastAPI backend, React frontend, single repo
 - Backend calls the Anthropic API server-side — the key is never exposed to the client
 - Deployed as a single service: FastAPI serves the built React static files, so there's one deploy target and one public URL, not two separate services to wire together
-- Minimal chat UI — functional over polished. Don't spend time on styling beyond readable.
+- Chat UI is on-brand, not just functional — colors, fonts, and button/card shapes are pulled directly from cadreai.com's live stylesheet (Phase 9 in plan.md), not guessed. Still minimal in scope: one screen, no dark mode, no animations.
 
 **Why FastAPI + React over Next.js:** lets the classify → answer → escalate flow be built as an explicit LangGraph graph rather than plain functions — a more direct architectural echo of the Benchr pattern, and a stronger System Design & Architecture story than reproducing the same logic in a different language.
 **Why single-service deploy:** two separate services would cost real time under the 4-6 hour budget and cut against "deploy early." Serving the built frontend from FastAPI keeps this to one deploy, one URL — the same speed advantage the Next.js option had.
@@ -66,7 +66,7 @@ Professional but approachable — matches a B2B consultancy talking to business 
 - Booking links to a real scheduling flow (a Google Calendar Appointment Schedule, configured via the `BOOKING_URL` env var — Phase 7), surfaced both as a header button and as a real markdown link wherever the bot mentions booking. No env var set yet, so it currently points at an obviously-fake placeholder URL. No CRM integration beyond that single link — no lead capture, no sync back to any system.
 - No RAG — knowledge base is static and small by design; noted above as the scaling path if needed (Phase 8, not yet built)
 - No persistent memory *across* sessions (a closed-and-reopened browser starts fresh) — memory *within* one open session is built (Phase 5)
-- Minimal UI polish — functionality prioritized over visual design given the time budget
+- UI is on-brand (Phase 9) but still narrow in scope — one screen, no dark mode, no animations, no mobile-specific breakpoints beyond what naturally reflows at a smaller width
 - `knowledge/cadre.json` content (services, AI Maturity Index tiers, portal URL) is plausible content written for this assessment, not pulled from real Cadre AI marketing collateral — no source brief with those specifics was available while building
 
 ## Automated tests
