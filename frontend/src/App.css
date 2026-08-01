@@ -8,6 +8,32 @@
   box-sizing: border-box;
 }
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.chat-header h1 {
+  margin: 0;
+}
+
+.book-call-link {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  background: #2563eb;
+  color: white;
+  text-decoration: none;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.book-call-link:hover {
+  background: #1d4ed8;
+}
+
 .messages {
   flex: 1;
   overflow-y: auto;

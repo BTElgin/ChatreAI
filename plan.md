@@ -63,10 +63,10 @@
 *If time allows: wire this into GitHub Actions so it runs on every push — not required, just the natural next step once the suite exists. Not done here — left as the noted next step, per this phase's own framing.*
 
 ## Phase 7 — Real Booking Integration
-- [ ] Set up a Google Calendar Appointment Schedule (Google's own public booking-page feature) to stand in for a real Cadre AI strategist's calendar — there's no real Cadre account to connect to, so this is a working booking flow, not a live integration with an actual Cadre system
-- [ ] Wire the appointment link into the frontend, reachable from wherever the bot currently says "book a call" (e.g. a button/link surfaced in the chat UI)
-- [ ] Update `knowledge/cadre.json`'s booking section and the bot's booking language to point at the real link instead of describing a website page
-- [ ] Re-run the 6 core scenarios, particularly the booking one, to confirm the bot's response still makes sense end to end
+- [x] Set up a Google Calendar Appointment Schedule (Google's own public booking-page feature) to stand in for a real Cadre AI strategist's calendar — there's no real Cadre account to connect to, so this is a working booking flow, not a live integration with an actual Cadre system. **Decision: placeholder for now** (see `app/config.py`'s `BOOKING_URL` env var, defaults to an obviously-fake URL) — set the real appointment-schedule link on Render whenever it exists, no code change needed
+- [x] Wire the appointment link into the frontend, reachable from wherever the bot currently says "book a call" — a persistent "Book a Call" button in the header (fetched from a new `GET /api/config` endpoint), plus the bot's own escalation/booking text now renders the phrase as a real markdown link instead of plain text
+- [x] Update `knowledge/cadre.json`'s booking section and the bot's booking language to point at the real link instead of describing a website page — `load_knowledge()` injects `BOOKING_URL` into `booking.url` at load time; `ANSWER_VOICE` instructs the model to format it as a markdown link
+- [x] Re-run the 6 core scenarios, particularly the booking one, to confirm the bot's response still makes sense end to end
 
 ## Phase 8 — RAG / Embeddings Retrieval
 - [ ] Pick an embedding approach and a vector store appropriately lightweight for a knowledge base this size (this is the one item where the added complexity is the whole point being explored, not a means to an end)

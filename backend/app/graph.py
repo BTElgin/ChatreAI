@@ -6,6 +6,7 @@ from typing import Optional, TypedDict
 import anthropic
 from langgraph.graph import END, StateGraph
 
+from app.config import BOOKING_URL
 from app.prompt import load_knowledge
 
 logger = logging.getLogger("cadre_chat")
@@ -59,10 +60,12 @@ ANSWER_VOICE = (
     "consultancy. Voice: professional but approachable, not overly casual and not stiff. "
     "Answer only using the knowledge below. Do not invent services, pricing, policies, or "
     "URLs that are not present in it. If the knowledge only covers part of what was asked, "
-    "answer that part and leave the rest alone rather than guessing."
+    "answer that part and leave the rest alone rather than guessing. When the knowledge "
+    "includes a booking URL, present it as a markdown link (e.g. [book a call](<url>)) "
+    "rather than pasting the raw URL or only describing it."
 )
 
-ESCALATION_CTA = "book a call with a Cadre AI strategist, who can dig into specifics with you"
+ESCALATION_CTA = f"[book a call with a Cadre AI strategist]({BOOKING_URL}), who can dig into specifics with you"
 ESCALATION_MESSAGE = f"That's outside what I can help with directly. The best next step is to {ESCALATION_CTA}."
 PARTIAL_ESCALATION_NOTE = (
     f"\n\nOne part of your question is outside what I can help with directly here — "

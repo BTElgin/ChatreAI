@@ -53,7 +53,8 @@
     "escalation_principle": "Every AI system Cadre builds follows the same rule: escalate to a human rather than guess when confidence is low. This is a design principle across every engagement, not just how the support bot itself behaves."
   },
   "booking": {
-    "how_to_book": "Book a call with an AI strategist from the 'Book a Call' page on the Cadre AI website, or ask here and the bot will point to the scheduling link. Initial calls run about 30 to 45 minutes and are free.",
+    "url": "(injected at runtime from the BOOKING_URL environment variable)",
+    "how_to_book": "Book a call with an AI strategist directly using the scheduling link (the url field) — pick an open time and it's confirmed instantly, no back-and-forth needed. Initial calls run about 30 to 45 minutes and are free.",
     "what_to_expect": "The first call is a scoping conversation covering current state and goals, and whether Cadre is a fit. It is not a sales pitch."
   },
   "client_portal": {

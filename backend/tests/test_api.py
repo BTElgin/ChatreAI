@@ -2,6 +2,7 @@ import json
 
 from fastapi.testclient import TestClient
 
+from app.config import BOOKING_URL
 from app.graph import ESCALATION_CTA, ESCALATION_MESSAGE
 from app.main import app
 from conftest import make_text_response
@@ -15,6 +16,20 @@ def classify_response(intents, has_unaddressed_scope=False):
 
 def post(messages):
     return client.post("/api/chat", json={"messages": messages})
+
+
+# --- config ---
+
+
+def test_config_returns_the_booking_url():
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    assert response.json() == {"bookingUrl": BOOKING_URL}
+
+
+def test_escalation_cta_is_a_markdown_link_to_the_booking_url():
+    assert f"]({BOOKING_URL})" in ESCALATION_CTA
+    assert f"]({BOOKING_URL})" in ESCALATION_MESSAGE
 
 
 # --- the 6 core scenarios (classify/answer mocked; see CLAUDE.md for the real, unmocked pass) ---

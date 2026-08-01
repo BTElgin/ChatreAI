@@ -17,9 +17,9 @@ A customer support chatbot for **Cadre AI**, an AI strategy and implementation c
 
 ## Explicitly out of scope (do not build unless asked)
 - No user auth / accounts — **why:** nothing in scope requires identifying the user; adding it would be unused complexity.
-- No persistent *multi-session* memory (recalling a prior visit after the browser closes) — **why:** no scenario in the brief requires the bot to recall a prior visit. Memory *within* one open session is a separate matter — see Phase 5 in plan.md.
+- No persistent *multi-session* memory (recalling a prior visit after the browser closes) — **why:** no scenario in the brief requires the bot to recall a prior visit. Memory *within* one open session is a separate matter — now built, see Phase 5 in plan.md.
 
-**Revisited with extra time (see Phase 5 in plan.md):** RAG/embeddings retrieval and real booking integration were both originally excluded from the MVP —
+**Revisited with extra time (see plan.md):** RAG/embeddings retrieval (Phase 8) and real booking integration (Phase 7, shipped) were both originally excluded from the MVP —
 - RAG: the knowledge base was small and static enough that a structured file injected into the system prompt was right-sized; reaching for embeddings/a vector store/retrieval tuning before the knowledge base outgrew that would have read as over-engineering, not sophistication.
 - Booking integration: a real scheduling integration was a project on its own, not what the MVP was evaluated on.
 
@@ -63,9 +63,9 @@ Professional but approachable — matches a B2B consultancy talking to business 
 - If something breaks, give me (Claude) the actual error output and relevant context rather than re-running the same prompt
 
 ## Known limitations (expected, not hidden)
-- No real booking/CRM integration — the bot describes the next step rather than completing it
-- No RAG — knowledge base is static and small by design; noted above as the scaling path if needed
-- No persistent memory across sessions
+- Booking links to a real scheduling flow (a Google Calendar Appointment Schedule, configured via the `BOOKING_URL` env var — Phase 7), surfaced both as a header button and as a real markdown link wherever the bot mentions booking. No env var set yet, so it currently points at an obviously-fake placeholder URL. No CRM integration beyond that single link — no lead capture, no sync back to any system.
+- No RAG — knowledge base is static and small by design; noted above as the scaling path if needed (Phase 8, not yet built)
+- No persistent memory *across* sessions (a closed-and-reopened browser starts fresh) — memory *within* one open session is built (Phase 5)
 - Minimal UI polish — functionality prioritized over visual design given the time budget
 - `knowledge/cadre.json` content (services, AI Maturity Index tiers, portal URL) is plausible content written for this assessment, not pulled from real Cadre AI marketing collateral — no source brief with those specifics was available while building
 

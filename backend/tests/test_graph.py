@@ -1,5 +1,6 @@
 import json
 
+from app.config import BOOKING_URL
 from app.graph import (
     ESCALATION_MESSAGE,
     HISTORY_WINDOW,
@@ -10,11 +11,20 @@ from app.graph import (
     respond,
     run_chat,
 )
+from app.prompt import load_knowledge
 from conftest import make_text_response
 
 
 def classify_response(intents, has_unaddressed_scope=False):
     return make_text_response(json.dumps({"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}))
+
+
+# --- knowledge loading ---
+
+
+def test_load_knowledge_injects_the_booking_url():
+    knowledge = load_knowledge()
+    assert knowledge["booking"]["url"] == BOOKING_URL
 
 
 # --- classify ---

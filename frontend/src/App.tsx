@@ -17,12 +17,20 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [bookingUrl, setBookingUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((response) => response.json())
+      .then((data) => setBookingUrl(data.bookingUrl))
+      .catch(() => {})
+  }, [])
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault()
@@ -58,7 +66,14 @@ function App() {
 
   return (
     <div className="chat">
-      <h1>Cadre AI Chat</h1>
+      <header className="chat-header">
+        <h1>Cadre AI Chat</h1>
+        {bookingUrl && (
+          <a className="book-call-link" href={bookingUrl} target="_blank" rel="noopener noreferrer">
+            Book a Call
+          </a>
+        )}
+      </header>
       <div className="messages">
         {messages.map((message, index) => (
           <div key={index} className={`message ${message.role}`}>
