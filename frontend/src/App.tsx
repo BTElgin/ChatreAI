@@ -67,7 +67,9 @@ function App() {
   return (
     <div className="chat">
       <header className="chat-header">
-        <h1>Cadre AI Chat</h1>
+        <h1>
+          Cadre AI <span className="accent">Chat</span>
+        </h1>
         {bookingUrl && (
           <a className="book-call-link" href={bookingUrl} target="_blank" rel="noopener noreferrer">
             Book a Call
