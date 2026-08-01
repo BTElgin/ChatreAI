@@ -46,10 +46,30 @@
 
 --- MVP + polish shipped and verified above. Everything below is additional scope taken on because extra time became available, not part of the original bar. ---
 
-## Phase 5 — Extended Capabilities (extra time available post-MVP)
-- [ ] Multi-turn conversation memory: thread message history through `/api/chat` and the LangGraph state so follow-up questions ("what about healthcare?") use context from earlier in the same session, instead of every message being answered in isolation
-- [ ] Automated test suite: pytest coverage for the classify/answer/escalation_check graph nodes and the `/api/chat` endpoint, covering the 6 core scenarios plus the Phase 3 edge cases (multi-part, partial-scope, ambiguous, simulated API failure) — replaces manual curl/browser testing as the regression check
-- [ ] Real booking integration: replace the text-only "book a call" redirect with an embedded scheduling widget, so booking happens in-product
-- [ ] RAG / embeddings retrieval: move `knowledge/cadre.json` from a static file to embeddings + vector retrieval — the scaling path CLAUDE.md's original "out of scope" reasoning named for once the knowledge base outgrows a single file
+## Phase 5 — Multi-turn Conversation Memory
+- [ ] Thread message history from the frontend to `/api/chat` (send prior turns, not just the latest message)
+- [ ] Extend the LangGraph state to carry that history into `classify` and `answer` so follow-up questions ("what about healthcare?") are understood in context instead of answered in isolation
+- [ ] Decide how far back history goes (whole session vs. a capped window) and whether it affects classify's intent accuracy — verify against a multi-turn conversation, not just single messages
+- [ ] Re-run the 6 core scenarios to confirm single-turn behavior is unaffected
 
-*Subagent opportunity: the test suite and the booking widget are independent of each other and of the memory/RAG changes — reasonable to parallelize.*
+## Phase 6 — Automated Test Suite
+- [ ] Add pytest and test dependencies to the backend
+- [ ] Unit tests for the `classify` / `answer` / `escalation_check` graph nodes, with the Anthropic client mocked so tests don't depend on a live API key or burn real tokens
+- [ ] Integration tests for `/api/chat` covering the 6 core scenarios plus the Phase 3 edge cases (multi-part, partial-scope, ambiguous, simulated API failure)
+- [ ] Document how to run the suite (README or CLAUDE.md) so it's part of the normal workflow, not a one-off
+
+*If time allows: wire this into GitHub Actions so it runs on every push — not required, just the natural next step once the suite exists.*
+
+## Phase 7 — Real Booking Integration
+- [ ] Decide the approach: embed a third-party scheduling widget (e.g. Calendly), or build a self-contained booking form with backend capture — there's no real Cadre AI calendar to connect to, so "real" means a working booking flow, not a live integration with an actual Cadre system
+- [ ] Wire the chosen flow into the frontend, reachable from wherever the bot currently says "book a call"
+- [ ] Update `knowledge/cadre.json`'s booking section and the bot's booking language to match the real flow instead of describing a website page
+- [ ] Re-run the 6 core scenarios, particularly the booking one, to confirm the bot's response still makes sense end to end
+
+## Phase 8 — RAG / Embeddings Retrieval
+- [ ] Pick an embedding approach and a vector store appropriately lightweight for a knowledge base this size (this is the one item where the added complexity is the whole point being explored, not a means to an end)
+- [ ] Chunk `knowledge/cadre.json` into retrievable units and embed them
+- [ ] Replace `answer`'s fixed knowledge-key lookup with a retrieval step: embed the user's message, retrieve the top-k relevant chunks, inject those into the answer prompt
+- [ ] Confirm answers stay grounded (no fabrication) and the 6 core scenarios still pass with retrieval in place of the fixed intent → knowledge-key mapping
+
+*Subagent opportunity: Phases 5-8 are largely independent of each other (memory, tests, booking, retrieval each touch different parts of the system) — reasonable to parallelize rather than doing them strictly in order.*
