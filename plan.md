@@ -61,9 +61,9 @@
 *If time allows: wire this into GitHub Actions so it runs on every push — not required, just the natural next step once the suite exists.*
 
 ## Phase 7 — Real Booking Integration
-- [ ] Decide the approach: embed a third-party scheduling widget (e.g. Calendly), or build a self-contained booking form with backend capture — there's no real Cadre AI calendar to connect to, so "real" means a working booking flow, not a live integration with an actual Cadre system
-- [ ] Wire the chosen flow into the frontend, reachable from wherever the bot currently says "book a call"
-- [ ] Update `knowledge/cadre.json`'s booking section and the bot's booking language to match the real flow instead of describing a website page
+- [ ] Set up a Google Calendar Appointment Schedule (Google's own public booking-page feature) to stand in for a real Cadre AI strategist's calendar — there's no real Cadre account to connect to, so this is a working booking flow, not a live integration with an actual Cadre system
+- [ ] Wire the appointment link into the frontend, reachable from wherever the bot currently says "book a call" (e.g. a button/link surfaced in the chat UI)
+- [ ] Update `knowledge/cadre.json`'s booking section and the bot's booking language to point at the real link instead of describing a website page
 - [ ] Re-run the 6 core scenarios, particularly the booking one, to confirm the bot's response still makes sense end to end
 
 ## Phase 8 — RAG / Embeddings Retrieval
