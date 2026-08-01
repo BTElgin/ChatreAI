@@ -21,13 +21,13 @@
   padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
   max-width: 80%;
-  white-space: pre-wrap;
 }
 
 .message.user {
   align-self: flex-end;
   background: #2563eb;
   color: white;
+  white-space: pre-wrap;
 }
 
 .message.assistant {
@@ -40,6 +40,47 @@
   align-self: flex-start;
   background: #fee2e2;
   color: #991b1b;
+}
+
+.message p {
+  margin: 0.5rem 0;
+}
+
+.message p:first-child {
+  margin-top: 0;
+}
+
+.message p:last-child {
+  margin-bottom: 0;
+}
+
+.message ul,
+.message ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.message li {
+  margin: 0.15rem 0;
+}
+
+.message table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.message th,
+.message td {
+  border: 1px solid #9ca3af;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.message code {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.9em;
 }
 
 .message.loading {

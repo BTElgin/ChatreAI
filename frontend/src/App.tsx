@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './App.css'
 
 interface Message {
@@ -59,7 +61,11 @@ function App() {
       <div className="messages">
         {messages.map((message, index) => (
           <div key={index} className={`message ${message.role}`}>
-            {message.text}
+            {message.role === 'user' ? (
+              message.text
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+            )}
           </div>
         ))}
         {loading && (
