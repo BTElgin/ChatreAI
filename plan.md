@@ -14,9 +14,9 @@
 *Subagent opportunity: the knowledge file content and the React chat UI scaffold (Phase 2) don't depend on each other — good candidate to split.*
 
 ## Phase 2 — Core Chat Loop
-- [ ] Build the classify → answer → escalation-check → respond flow as an explicit LangGraph graph (mirroring the Benchr pattern)
-- [ ] Basic chat UI: message list + input, calling `/api/chat`
-- [ ] Manually test the 6 scenarios from CLAUDE.md against localhost
+- [x] Build the classify → answer → escalation-check → respond flow as an explicit LangGraph graph (mirroring the Benchr pattern)
+- [x] Basic chat UI: message list + input, calling `/api/chat`
+- [x] Manually test the 6 scenarios from CLAUDE.md against localhost
 
 --- MVP CUT LINE — everything above this must ship. Everything below is stretch; if time runs out, that's a deliberate, documented call, not a scramble. ---
 
