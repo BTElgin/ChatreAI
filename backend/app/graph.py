@@ -11,6 +11,7 @@ from app.prompt import load_knowledge
 logger = logging.getLogger("cadre_chat")
 
 MODEL = "claude-opus-5"
+HISTORY_WINDOW = 20  # last N messages (~10 exchanges) kept as context; older turns drop off
 
 KNOWN_INTENTS = [
     "about_and_industries",
@@ -47,11 +48,11 @@ CLASSIFY_SCHEMA = {
     "additionalProperties": False,
 }
 
-CLASSIFY_SYSTEM = f"""Identify which of the following categories the user's message touches. A message can touch zero, one, or several.
+CLASSIFY_SYSTEM = f"""Identify which of the following categories the user's LATEST message touches. A message can touch zero, one, or several. You may be shown earlier turns of the conversation first — use them only as context for interpreting the latest message (e.g. a short follow-up like "what about healthcare?" should be read against what was just discussed), not as something to classify themselves.
 
 {INTENT_DESCRIPTIONS}
 
-Also set has_unaddressed_scope to true if any part of the message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category."""
+Also set has_unaddressed_scope to true if any part of the latest message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category."""
 
 ANSWER_VOICE = (
     "You are the support assistant for Cadre AI, a B2B AI strategy and implementation "
@@ -71,6 +72,7 @@ PARTIAL_ESCALATION_NOTE = (
 
 class ChatState(TypedDict, total=False):
     message: str
+    history: list[dict]
     intents: list[str]
     has_unaddressed_scope: bool
     knowledge_used: list[str]
@@ -84,6 +86,10 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic()
 
 
+def _conversation(state: ChatState) -> list[dict]:
+    return [*state.get("history", []), {"role": "user", "content": state["message"]}]
+
+
 def classify(state: ChatState) -> ChatState:
     try:
         response = _client().messages.create(
@@ -94,7 +100,7 @@ def classify(state: ChatState) -> ChatState:
                 "format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA},
             },
             system=CLASSIFY_SYSTEM,
-            messages=[{"role": "user", "content": state["message"]}],
+            messages=_conversation(state),
         )
         text = next(b.text for b in response.content if b.type == "text")
         data = json.loads(text)
@@ -126,7 +132,7 @@ def answer(state: ChatState) -> ChatState:
             max_tokens=1024,
             output_config={"effort": "low"},
             system=f"{ANSWER_VOICE}\n\n## Knowledge\n\n{json.dumps(scoped_knowledge, indent=2)}",
-            messages=[{"role": "user", "content": state["message"]}],
+            messages=_conversation(state),
         )
         draft = next(b.text for b in response.content if b.type == "text")
     except Exception:
@@ -174,5 +180,6 @@ def build_graph():
 _compiled_graph = build_graph()
 
 
-def run_chat(message: str) -> ChatState:
-    return _compiled_graph.invoke({"message": message})
+def run_chat(message: str, history: Optional[list[dict]] = None) -> ChatState:
+    windowed_history = (history or [])[-HISTORY_WINDOW:]
+    return _compiled_graph.invoke({"message": message, "history": windowed_history})

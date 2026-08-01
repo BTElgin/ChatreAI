@@ -47,10 +47,10 @@
 --- MVP + polish shipped and verified above. Everything below is additional scope taken on because extra time became available, not part of the original bar. ---
 
 ## Phase 5 — Multi-turn Conversation Memory
-- [ ] Thread message history from the frontend to `/api/chat` (send prior turns, not just the latest message)
-- [ ] Extend the LangGraph state to carry that history into `classify` and `answer` so follow-up questions ("what about healthcare?") are understood in context instead of answered in isolation
-- [ ] Decide how far back history goes (whole session vs. a capped window) and whether it affects classify's intent accuracy — verify against a multi-turn conversation, not just single messages
-- [ ] Re-run the 6 core scenarios to confirm single-turn behavior is unaffected
+- [x] Thread message history from the frontend to `/api/chat` (send prior turns, not just the latest message)
+- [x] Extend the LangGraph state to carry that history into `classify` and `answer` so follow-up questions ("what about healthcare?") are understood in context instead of answered in isolation
+- [x] Decide how far back history goes (whole session vs. a capped window) and whether it affects classify's intent accuracy — capped at the last 20 messages (~10 exchanges); verified against a real multi-turn conversation, not just single messages
+- [x] Re-run the 6 core scenarios to confirm single-turn behavior is unaffected
 
 ## Phase 6 — Automated Test Suite
 - [ ] Add pytest and test dependencies to the backend

@@ -29,7 +29,8 @@ function App() {
     const text = input.trim()
     if (!text || loading) return
 
-    setMessages((prev) => [...prev, { role: 'user', text }])
+    const outgoing = [...messages, { role: 'user' as const, text }]
+    setMessages(outgoing)
     setInput('')
     setLoading(true)
 
@@ -40,7 +41,7 @@ function App() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ messages: outgoing.filter((m) => m.role !== 'error') }),
         signal: controller.signal,
       })
       if (!response.ok) throw new Error(`Request failed (${response.status})`)
