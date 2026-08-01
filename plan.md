@@ -43,3 +43,13 @@
 - [x] plan.md present at project root, reflecting what actually got built (update if scope shifted)
 - [x] All 6 test scenarios pass against the deployed URL
 - [x] Known limitations section in CLAUDE.md reflects reality, not the original plan
+
+--- MVP + polish shipped and verified above. Everything below is additional scope taken on because extra time became available, not part of the original bar. ---
+
+## Phase 5 — Extended Capabilities (extra time available post-MVP)
+- [ ] Multi-turn conversation memory: thread message history through `/api/chat` and the LangGraph state so follow-up questions ("what about healthcare?") use context from earlier in the same session, instead of every message being answered in isolation
+- [ ] Automated test suite: pytest coverage for the classify/answer/escalation_check graph nodes and the `/api/chat` endpoint, covering the 6 core scenarios plus the Phase 3 edge cases (multi-part, partial-scope, ambiguous, simulated API failure) — replaces manual curl/browser testing as the regression check
+- [ ] Real booking integration: replace the text-only "book a call" redirect with an embedded scheduling widget, so booking happens in-product
+- [ ] RAG / embeddings retrieval: move `knowledge/cadre.json` from a static file to embeddings + vector retrieval — the scaling path CLAUDE.md's original "out of scope" reasoning named for once the knowledge base outgrows a single file
+
+*Subagent opportunity: the test suite and the booking widget are independent of each other and of the memory/RAG changes — reasonable to parallelize.*

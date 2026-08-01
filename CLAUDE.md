@@ -16,10 +16,14 @@ A customer support chatbot for **Cadre AI**, an AI strategy and implementation c
 **Guiding principle — escalation over silent failure:** if the bot isn't confident an answer is correct, it hands off to a human rather than guessing. A wrong answer erodes trust faster than an honest "let me connect you with someone who can help."
 
 ## Explicitly out of scope (do not build unless asked)
-- No RAG / vector search — the knowledge base is small and static; a structured knowledge file injected into the system prompt is right-sized. **Why:** start conservative and tune with data — narrow scope first, expand based on real usage rather than anticipated usage. RAG adds real engineering overhead (embeddings, vector store, retrieval tuning) this scope doesn't need yet, and reaching for it anyway would read as over-engineering, not sophistication. If asked how this scales: move to embeddings + retrieval once the knowledge base outgrows context.
 - No user auth / accounts — **why:** nothing in scope requires identifying the user; adding it would be unused complexity.
-- No real CRM or booking integration — describe the next step or link out, don't build the integration. **Why:** integrating a real system is a project on its own and isn't what's being evaluated here.
-- No persistent multi-session memory — single-session conversation state is enough. **Why:** no scenario in the brief requires the bot to recall a prior visit.
+- No persistent *multi-session* memory (recalling a prior visit after the browser closes) — **why:** no scenario in the brief requires the bot to recall a prior visit. Memory *within* one open session is a separate matter — see Phase 5 in plan.md.
+
+**Revisited with extra time (see Phase 5 in plan.md):** RAG/embeddings retrieval and real booking integration were both originally excluded from the MVP —
+- RAG: the knowledge base was small and static enough that a structured file injected into the system prompt was right-sized; reaching for embeddings/a vector store/retrieval tuning before the knowledge base outgrew that would have read as over-engineering, not sophistication.
+- Booking integration: a real scheduling integration was a project on its own, not what the MVP was evaluated on.
+
+Both reasons still explain why the *original* MVP didn't include them — extra time is what changed, not the original judgment call.
 
 ## Architecture
 Flow: **classify intent → answer from knowledge base → escalation check → respond**, implemented as an explicit LangGraph graph — mirroring the same phase-based state machine pattern used in Benchr (TRIAGE → PLANNING → ... → DONE) — rather than folding the logic into one large prompt.
