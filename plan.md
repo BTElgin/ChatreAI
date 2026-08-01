@@ -37,9 +37,9 @@
 *Subagent opportunity: the 6-scenario test pass can run as its own subagent once Phase 2 is wired, freeing up the main thread to keep building.*
 
 ## Definition of Done (pre-submission gate)
-- [ ] Deployed public URL is live and current
-- [ ] Code pushed to the shared GitHub repo
-- [ ] CLAUDE.md present at project root
-- [ ] plan.md present at project root, reflecting what actually got built (update if scope shifted)
-- [ ] All 6 test scenarios pass against the deployed URL
-- [ ] Known limitations section in CLAUDE.md reflects reality, not the original plan
+- [x] Deployed public URL is live and current — https://chatreai.onrender.com
+- [x] Code pushed to the shared GitHub repo
+- [x] CLAUDE.md present at project root
+- [x] plan.md present at project root, reflecting what actually got built (update if scope shifted)
+- [x] All 6 test scenarios pass against the deployed URL
+- [x] Known limitations section in CLAUDE.md reflects reality, not the original plan
