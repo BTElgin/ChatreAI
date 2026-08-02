@@ -98,7 +98,7 @@ function App() {
         ))}
         {loading && (
           <div className="message assistant loading" aria-live="polite">
-            Thinking…
+            Typing…
           </div>
         )}
         <div ref={bottomRef} />
