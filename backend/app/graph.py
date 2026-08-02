@@ -85,6 +85,7 @@ CLASSIFY_SCHEMA = {
             "items": {"type": "string", "enum": KNOWN_INTENTS},
         },
         "has_unaddressed_scope": {"type": "boolean"},
+        "unaddressed_scope_summary": {"type": "string"},
         "existing_customer": {"type": "boolean"},
         "is_greeting": {"type": "boolean"},
         **lead.PROFILE_SCHEMA_PROPERTIES,
@@ -92,6 +93,7 @@ CLASSIFY_SCHEMA = {
     "required": [
         "intents",
         "has_unaddressed_scope",
+        "unaddressed_scope_summary",
         "existing_customer",
         "is_greeting",
         *lead.PROFILE_FIELDS,
@@ -103,7 +105,7 @@ CLASSIFY_SYSTEM = f"""Identify which of the following categories the user's LATE
 
 {INTENT_DESCRIPTIONS}
 
-Also set has_unaddressed_scope to true if any part of the latest message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category.
+Also set has_unaddressed_scope to true if any part of the latest message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category. When you set it to true, also set unaddressed_scope_summary to a short phrase (a few words, not a full sentence) naming that specific part — written so it reads naturally inserted into "One part of your question — {{summary}} — is outside what I can help with directly here." For example: "the cookie recipe question", "custom contract terms", "integrating with your existing CRM". Use an empty string when has_unaddressed_scope is false.
 
 Also set existing_customer to true if anywhere in the conversation the user has indicated they are already a paying Cadre AI client — e.g. they mention their account, an AI agent or system Cadre already built for them, their account manager, or say directly that they're already a client. Default to false; do not infer this just because someone asks a detailed or technical question.
 
@@ -166,10 +168,11 @@ def _escalation_message(existing_customer: bool) -> str:
     return f"That's outside what I can help with directly. The best next step is to {_escalation_cta(existing_customer)}."
 
 
-def _partial_escalation_note(existing_customer: bool) -> str:
+def _partial_escalation_note(existing_customer: bool, summary: str = "") -> str:
+    detail = f" — {summary} —" if summary else ""
     return (
-        f"\n\nOne part of your question is outside what I can help with directly here — "
-        f"for that, the best next step is to {_escalation_cta(existing_customer)}."
+        f"\n\nOne part of your question{detail} is outside what I can help with directly here. "
+        f"For that, the best next step is to {_escalation_cta(existing_customer)}."
     )
 
 
@@ -225,6 +228,7 @@ class ChatState(TypedDict, total=False):
     history: list[dict]
     intents: list[str]
     has_unaddressed_scope: bool
+    unaddressed_scope_summary: str
     existing_customer: bool
     is_greeting: bool
     knowledge_used: list[str]
@@ -253,7 +257,7 @@ def classify(state: ChatState) -> ChatState:
     try:
         response = _client().messages.create(
             model=CLASSIFY_MODEL,
-            max_tokens=300,
+            max_tokens=350,
             output_config={"format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA}},
             system=CLASSIFY_SYSTEM,
             messages=_conversation(state),
@@ -261,6 +265,7 @@ def classify(state: ChatState) -> ChatState:
         data = json.loads(_first_text(response))
         intents = [i for i in data["intents"] if i in KNOWN_INTENTS]
         has_unaddressed_scope = bool(data["has_unaddressed_scope"])
+        unaddressed_scope_summary = data["unaddressed_scope_summary"] if has_unaddressed_scope else ""
         existing_customer = bool(data["existing_customer"])
         is_greeting = bool(data["is_greeting"])
         profile = lead.filter_profile(data)
@@ -268,13 +273,15 @@ def classify(state: ChatState) -> ChatState:
         logger.exception("classify failed, defaulting to escalate")
         intents = []
         has_unaddressed_scope = True
+        unaddressed_scope_summary = ""
         existing_customer = False
         is_greeting = False
         profile = {}
     logger.info(
-        "classify: intents=%s has_unaddressed_scope=%s existing_customer=%s is_greeting=%s profile_keys=%s",
+        "classify: intents=%s has_unaddressed_scope=%s unaddressed_scope_summary=%r existing_customer=%s is_greeting=%s profile_keys=%s",
         intents,
         has_unaddressed_scope,
+        unaddressed_scope_summary,
         existing_customer,
         is_greeting,
         list(profile),
@@ -282,6 +289,7 @@ def classify(state: ChatState) -> ChatState:
     return {
         "intents": intents,
         "has_unaddressed_scope": has_unaddressed_scope,
+        "unaddressed_scope_summary": unaddressed_scope_summary,
         "existing_customer": existing_customer,
         "is_greeting": is_greeting,
         "profile": profile,
@@ -355,7 +363,8 @@ def respond(state: ChatState) -> ChatState:
         return {"response": _escalation_message(existing_customer)}
     response = state["draft_answer"]
     if state["has_unaddressed_scope"]:
-        response = f"{response}{_partial_escalation_note(existing_customer)}"
+        summary = state.get("unaddressed_scope_summary", "")
+        response = f"{response}{_partial_escalation_note(existing_customer, summary)}"
     return {"response": response}
 
 

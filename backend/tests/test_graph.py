@@ -64,6 +64,43 @@ def test_classify_flags_unaddressed_scope(mock_client):
     assert result["has_unaddressed_scope"] is True
 
 
+def test_classify_extracts_the_unaddressed_scope_summary(mock_client):
+    mock_client.messages.create.return_value = classify_response(
+        ["booking"], has_unaddressed_scope=True, unaddressed_scope_summary="the cookie recipe question"
+    )
+    result = classify({"message": "How do I book, and what's a good cookie recipe?", "history": []})
+    assert result["unaddressed_scope_summary"] == "the cookie recipe question"
+
+
+def test_classify_forces_empty_summary_when_scope_is_fully_addressed(mock_client):
+    # Defensive: even if the model returned a stray summary alongside
+    # has_unaddressed_scope=False, it must not leak into the response.
+    mock_client.messages.create.return_value = make_text_response(
+        json.dumps(
+            {
+                "intents": ["booking"],
+                "has_unaddressed_scope": False,
+                "unaddressed_scope_summary": "should be ignored",
+                "existing_customer": False,
+                "is_greeting": False,
+                "name": "",
+                "business_name": "",
+                "business_type": "",
+                "phone": "",
+                "email": "",
+            }
+        )
+    )
+    result = classify({"message": "How do I book a call?", "history": []})
+    assert result["unaddressed_scope_summary"] == ""
+
+
+def test_classify_defaults_unaddressed_scope_summary_to_empty_on_api_failure(mock_client):
+    mock_client.messages.create.side_effect = RuntimeError("boom")
+    result = classify({"message": "anything", "history": []})
+    assert result["unaddressed_scope_summary"] == ""
+
+
 def test_classify_drops_unknown_intents_from_the_model(mock_client):
     mock_client.messages.create.return_value = make_text_response(
         json.dumps(
@@ -592,6 +629,30 @@ def test_respond_returns_the_draft_answer_unchanged_when_fully_in_scope():
 def test_respond_appends_the_partial_escalation_note():
     result = respond({"escalate": False, "draft_answer": "Here you go.", "has_unaddressed_scope": True})
     assert result["response"] == f"Here you go.{PARTIAL_ESCALATION_NOTE}"
+
+
+def test_respond_names_the_specific_unaddressed_part_when_a_summary_is_present():
+    result = respond(
+        {
+            "escalate": False,
+            "draft_answer": "Here's how to book.",
+            "has_unaddressed_scope": True,
+            "unaddressed_scope_summary": "the cookie recipe question",
+        }
+    )
+    assert "the cookie recipe question" in result["response"]
+
+
+def test_respond_falls_back_to_generic_wording_without_a_summary():
+    result = respond(
+        {
+            "escalate": False,
+            "draft_answer": "Here's how to book.",
+            "has_unaddressed_scope": True,
+            "unaddressed_scope_summary": "",
+        }
+    )
+    assert result["response"] == f"Here's how to book.{PARTIAL_ESCALATION_NOTE}"
 
 
 def test_respond_routes_existing_customers_to_their_engagement_lead_on_full_escalation():

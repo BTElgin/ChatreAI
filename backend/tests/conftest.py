@@ -17,6 +17,7 @@ def make_text_response(text: str) -> MagicMock:
 def classify_response(
     intents,
     has_unaddressed_scope=False,
+    unaddressed_scope_summary="",
     existing_customer=False,
     is_greeting=False,
     name="",
@@ -30,6 +31,7 @@ def classify_response(
             {
                 "intents": intents,
                 "has_unaddressed_scope": has_unaddressed_scope,
+                "unaddressed_scope_summary": unaddressed_scope_summary,
                 "existing_customer": existing_customer,
                 "is_greeting": is_greeting,
                 "name": name,
