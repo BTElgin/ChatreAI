@@ -14,8 +14,16 @@ def make_text_response(text: str) -> MagicMock:
     return response
 
 
-def classify_response(intents, has_unaddressed_scope=False) -> MagicMock:
-    return make_text_response(json.dumps({"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}))
+def classify_response(intents, has_unaddressed_scope=False, existing_customer=False) -> MagicMock:
+    return make_text_response(
+        json.dumps(
+            {
+                "intents": intents,
+                "has_unaddressed_scope": has_unaddressed_scope,
+                "existing_customer": existing_customer,
+            }
+        )
+    )
 
 
 def suggestions_response(suggestions) -> MagicMock:

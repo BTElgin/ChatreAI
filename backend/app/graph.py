@@ -80,8 +80,9 @@ CLASSIFY_SCHEMA = {
             "items": {"type": "string", "enum": KNOWN_INTENTS},
         },
         "has_unaddressed_scope": {"type": "boolean"},
+        "existing_customer": {"type": "boolean"},
     },
-    "required": ["intents", "has_unaddressed_scope"],
+    "required": ["intents", "has_unaddressed_scope", "existing_customer"],
     "additionalProperties": False,
 }
 
@@ -89,16 +90,33 @@ CLASSIFY_SYSTEM = f"""Identify which of the following categories the user's LATE
 
 {INTENT_DESCRIPTIONS}
 
-Also set has_unaddressed_scope to true if any part of the latest message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category."""
+Also set has_unaddressed_scope to true if any part of the latest message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category.
 
-ANSWER_VOICE = (
+Also set existing_customer to true if anywhere in the conversation the user has indicated they are already a paying Cadre AI client — e.g. they mention their account, an AI agent or system Cadre already built for them, their account manager, or say directly that they're already a client. Default to false; do not infer this just because someone asks a detailed or technical question."""
+
+ANSWER_VOICE_BASE = (
     "You are the support assistant for Cadre AI, a B2B AI strategy and implementation "
-    "consultancy. Voice: professional but approachable, not overly casual and not stiff. "
+    "consultancy. Voice: professional but approachable, not overly casual and not stiff, "
+    "and always encouraging and supportive — sound like you're rooting for the person's "
+    "business, even when redirecting or admitting something is out of scope. "
     "Answer only using the knowledge below. Do not invent services, pricing, policies, or "
     "URLs that are not present in it. If the knowledge only covers part of what was asked, "
     "answer that part and leave the rest alone rather than guessing. When the knowledge "
     "includes a booking URL, present it as a markdown link (e.g. [book a call](<url>)) "
     "rather than pasting the raw URL or only describing it."
+)
+
+ANSWER_VOICE_PROSPECT_ADDENDUM = (
+    " Where it's natural, point out a specific, concrete way Cadre could help improve "
+    "this person's business given what they've shared — not a generic sales pitch, just "
+    "an honest, supportive nudge toward how Cadre applies to their situation."
+)
+
+ANSWER_VOICE_CUSTOMER_ADDENDUM = (
+    " This person is an existing Cadre AI client — speak to them like a client, not a "
+    "prospect. Focus on getting more value out of what they already have and point out "
+    "other Cadre services that could complement their current engagement. Don't pitch "
+    "them on becoming a client; they already are one."
 )
 
 ESCALATION_CTA = f"[book a call with a Cadre AI strategist]({BOOKING_URL}), who can dig into specifics with you"
@@ -133,6 +151,7 @@ class ChatState(TypedDict, total=False):
     history: list[dict]
     intents: list[str]
     has_unaddressed_scope: bool
+    existing_customer: bool
     knowledge_used: list[str]
     draft_answer: Optional[str]
     escalate: bool
@@ -166,12 +185,23 @@ def classify(state: ChatState) -> ChatState:
         data = json.loads(_first_text(response))
         intents = [i for i in data["intents"] if i in KNOWN_INTENTS]
         has_unaddressed_scope = bool(data["has_unaddressed_scope"])
+        existing_customer = bool(data["existing_customer"])
     except Exception:
         logger.exception("classify failed, defaulting to escalate")
         intents = []
         has_unaddressed_scope = True
-    logger.info("classify: intents=%s has_unaddressed_scope=%s", intents, has_unaddressed_scope)
-    return {"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}
+        existing_customer = False
+    logger.info(
+        "classify: intents=%s has_unaddressed_scope=%s existing_customer=%s",
+        intents,
+        has_unaddressed_scope,
+        existing_customer,
+    )
+    return {
+        "intents": intents,
+        "has_unaddressed_scope": has_unaddressed_scope,
+        "existing_customer": existing_customer,
+    }
 
 
 def answer(state: ChatState) -> ChatState:
@@ -183,19 +213,28 @@ def answer(state: ChatState) -> ChatState:
 
     knowledge = load_knowledge()
     scoped_knowledge = {k: knowledge[k] for k in keys if k in knowledge}
+    voice = ANSWER_VOICE_BASE + (
+        ANSWER_VOICE_CUSTOMER_ADDENDUM if state.get("existing_customer") else ANSWER_VOICE_PROSPECT_ADDENDUM
+    )
     draft = None
     try:
         response = _client().messages.create(
             model=ANSWER_MODEL,
             max_tokens=1024,
             output_config={"effort": "low"},
-            system=f"{ANSWER_VOICE}\n\n## Knowledge\n\n{json.dumps(scoped_knowledge, indent=2)}",
+            system=f"{voice}\n\n## Knowledge\n\n{json.dumps(scoped_knowledge, indent=2)}",
             messages=_conversation(state),
         )
         draft = _first_text(response)
     except Exception:
         logger.exception("answer failed for intents=%s", intents)
-    logger.info("answer: intents=%s knowledge_used=%s ok=%s", intents, keys, draft is not None)
+    logger.info(
+        "answer: intents=%s knowledge_used=%s existing_customer=%s ok=%s",
+        intents,
+        keys,
+        state.get("existing_customer", False),
+        draft is not None,
+    )
     return {"draft_answer": draft, "knowledge_used": keys}
 
 

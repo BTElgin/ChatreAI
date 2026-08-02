@@ -3,6 +3,8 @@ import json
 from app.config import BOOKING_URL
 from app.graph import (
     ANSWER_MODEL,
+    ANSWER_VOICE_CUSTOMER_ADDENDUM,
+    ANSWER_VOICE_PROSPECT_ADDENDUM,
     CLASSIFY_MODEL,
     ESCALATION_MESSAGE,
     HISTORY_WINDOW,
@@ -55,7 +57,9 @@ def test_classify_flags_unaddressed_scope(mock_client):
 
 def test_classify_drops_unknown_intents_from_the_model(mock_client):
     mock_client.messages.create.return_value = make_text_response(
-        json.dumps({"intents": ["booking", "made_up_intent"], "has_unaddressed_scope": False})
+        json.dumps(
+            {"intents": ["booking", "made_up_intent"], "has_unaddressed_scope": False, "existing_customer": False}
+        )
     )
     result = classify({"message": "anything", "history": []})
     assert result["intents"] == ["booking"]
@@ -66,6 +70,19 @@ def test_classify_defaults_to_escalate_on_api_failure(mock_client):
     result = classify({"message": "anything", "history": []})
     assert result["intents"] == []
     assert result["has_unaddressed_scope"] is True
+    assert result["existing_customer"] is False
+
+
+def test_classify_flags_existing_customer(mock_client):
+    mock_client.messages.create.return_value = classify_response(["client_portal"], existing_customer=True)
+    result = classify({"message": "my AI agent isn't responding, how do I check on it?", "history": []})
+    assert result["existing_customer"] is True
+
+
+def test_classify_defaults_existing_customer_to_false(mock_client):
+    mock_client.messages.create.return_value = classify_response(["booking"])
+    result = classify({"message": "How do I book a call?", "history": []})
+    assert result["existing_customer"] is False
 
 
 def test_classify_sends_history_and_latest_message(mock_client):
@@ -118,6 +135,22 @@ def test_answer_scopes_knowledge_for_case_studies(mock_client):
     mock_client.messages.create.return_value = make_text_response("Here are a few results.")
     result = answer({"message": "any case studies?", "intents": ["case_studies"], "history": []})
     assert result["knowledge_used"] == ["case_studies"]
+
+
+def test_answer_uses_the_prospect_voice_by_default(mock_client):
+    mock_client.messages.create.return_value = make_text_response("answer")
+    answer({"message": "...", "intents": ["booking"], "history": []})
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert ANSWER_VOICE_PROSPECT_ADDENDUM in system
+    assert ANSWER_VOICE_CUSTOMER_ADDENDUM not in system
+
+
+def test_answer_uses_the_customer_voice_for_existing_customers(mock_client):
+    mock_client.messages.create.return_value = make_text_response("answer")
+    answer({"message": "...", "intents": ["booking"], "history": [], "existing_customer": True})
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert ANSWER_VOICE_CUSTOMER_ADDENDUM in system
+    assert ANSWER_VOICE_PROSPECT_ADDENDUM not in system
 
 
 # --- model routing ---
@@ -265,6 +298,16 @@ def test_run_chat_escalates_out_of_scope_questions(mock_client):
     # answer() must not call the model when nothing was classified, but
     # suggest_followups always runs (classify + suggest_followups = 2 calls)
     assert mock_client.messages.create.call_count == 2
+
+
+def test_run_chat_propagates_existing_customer_into_the_answer_voice(mock_client):
+    mock_client.messages.create.side_effect = [
+        classify_response(["client_portal"], existing_customer=True),
+        make_text_response("Here's how to check your agent's status."),
+    ]
+    run_chat("my AI agent isn't responding, how do I check on it?")
+    answer_call = mock_client.messages.create.call_args_list[1]
+    assert ANSWER_VOICE_CUSTOMER_ADDENDUM in answer_call.kwargs["system"]
 
 
 def test_run_chat_windows_long_history(mock_client):
