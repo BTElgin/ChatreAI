@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,6 +12,14 @@ def make_text_response(text: str) -> MagicMock:
     response = MagicMock()
     response.content = [block]
     return response
+
+
+def classify_response(intents, has_unaddressed_scope=False) -> MagicMock:
+    return make_text_response(json.dumps({"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}))
+
+
+def suggestions_response(suggestions) -> MagicMock:
+    return make_text_response(json.dumps({"suggestions": suggestions}))
 
 
 @pytest.fixture

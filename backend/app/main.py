@@ -42,7 +42,7 @@ async def config() -> ConfigResponse:
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+def chat(request: ChatRequest) -> ChatResponse:
     if not request.messages or request.messages[-1].role != "user":
         raise HTTPException(status_code=400, detail="messages must end with a user message")
 

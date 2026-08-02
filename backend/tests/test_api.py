@@ -1,21 +1,11 @@
-import json
-
 from fastapi.testclient import TestClient
 
 from app.config import BOOKING_URL
 from app.graph import ESCALATION_CTA, ESCALATION_MESSAGE, STARTER_PROMPTS
 from app.main import app
-from conftest import make_text_response
+from conftest import classify_response, make_text_response, suggestions_response
 
 client = TestClient(app)
-
-
-def classify_response(intents, has_unaddressed_scope=False):
-    return make_text_response(json.dumps({"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}))
-
-
-def suggestions_response(suggestions):
-    return make_text_response(json.dumps({"suggestions": suggestions}))
 
 
 def post(messages):

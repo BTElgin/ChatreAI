@@ -6,6 +6,7 @@ from app.graph import (
     CLASSIFY_MODEL,
     ESCALATION_MESSAGE,
     HISTORY_WINDOW,
+    INTENT_KNOWLEDGE_KEYS,
     KNOWN_INTENTS,
     MAX_SUGGESTIONS,
     PARTIAL_ESCALATION_NOTE,
@@ -19,15 +20,7 @@ from app.graph import (
     suggest_followups,
 )
 from app.prompt import load_knowledge
-from conftest import make_text_response
-
-
-def classify_response(intents, has_unaddressed_scope=False):
-    return make_text_response(json.dumps({"intents": intents, "has_unaddressed_scope": has_unaddressed_scope}))
-
-
-def suggestions_response(suggestions):
-    return make_text_response(json.dumps({"suggestions": suggestions}))
+from conftest import classify_response, make_text_response, suggestions_response
 
 
 # --- knowledge loading ---
@@ -208,6 +201,13 @@ def test_starter_prompts_are_non_empty_strings():
 def test_pricing_and_case_studies_are_known_intents():
     assert "pricing" in KNOWN_INTENTS
     assert "case_studies" in KNOWN_INTENTS
+
+
+def test_every_intent_knowledge_key_exists_in_the_knowledge_base():
+    knowledge = load_knowledge()
+    for intent, keys in INTENT_KNOWLEDGE_KEYS.items():
+        for key in keys:
+            assert key in knowledge, f"{intent} references missing knowledge key {key!r}"
 
 
 # --- escalation_check ---

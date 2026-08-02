@@ -21,33 +21,44 @@ ANSWER_MODEL = "claude-opus-5"
 HISTORY_WINDOW = 20  # last N messages (~10 exchanges) kept as context; older turns drop off
 MAX_SUGGESTIONS = 3
 
-KNOWN_INTENTS = [
-    "about_and_industries",
-    "booking",
-    "client_portal",
-    "ai_maturity_index",
-    "llm_and_data_security",
-    "pricing",
-    "case_studies",
-]
-
-INTENT_KNOWLEDGE_KEYS = {
-    "about_and_industries": ["company", "services", "industries_served"],
-    "booking": ["booking"],
-    "client_portal": ["client_portal"],
-    "ai_maturity_index": ["ai_maturity_index"],
-    "llm_and_data_security": ["llm_and_data_security"],
-    "pricing": ["pricing"],
-    "case_studies": ["case_studies"],
+# Single source of truth for the 7 classifiable intents: what they mean (for
+# the classify/suggest prompts) and which knowledge/cadre.json keys answer
+# them. KNOWN_INTENTS, INTENT_KNOWLEDGE_KEYS, and INTENT_DESCRIPTIONS all
+# derive from this so a new intent only needs one entry, not three.
+INTENTS = {
+    "about_and_industries": {
+        "description": "what Cadre AI does, and whether it serves the asker's industry",
+        "knowledge_keys": ["company", "services", "industries_served"],
+    },
+    "booking": {
+        "description": "how to book a call with an AI strategist, or how to get started",
+        "knowledge_keys": ["booking"],
+    },
+    "client_portal": {
+        "description": "how to access the Cadre client portal",
+        "knowledge_keys": ["client_portal"],
+    },
+    "ai_maturity_index": {
+        "description": "what the AI Maturity Index is and how to get scored",
+        "knowledge_keys": ["ai_maturity_index"],
+    },
+    "llm_and_data_security": {
+        "description": "Cadre's approach to LLM selection and data security",
+        "knowledge_keys": ["llm_and_data_security"],
+    },
+    "pricing": {
+        "description": "how much Cadre's services cost, or how pricing works",
+        "knowledge_keys": ["pricing"],
+    },
+    "case_studies": {
+        "description": "examples of results Cadre has delivered for clients, case studies, success stories",
+        "knowledge_keys": ["case_studies"],
+    },
 }
 
-INTENT_DESCRIPTIONS = """- about_and_industries: what Cadre AI does, and whether it serves the asker's industry
-- booking: how to book a call with an AI strategist, or how to get started
-- client_portal: how to access the Cadre client portal
-- ai_maturity_index: what the AI Maturity Index is and how to get scored
-- llm_and_data_security: Cadre's approach to LLM selection and data security
-- pricing: how much Cadre's services cost, or how pricing works
-- case_studies: examples of results Cadre has delivered for clients, case studies, success stories"""
+KNOWN_INTENTS = list(INTENTS)
+INTENT_KNOWLEDGE_KEYS = {intent: info["knowledge_keys"] for intent, info in INTENTS.items()}
+INTENT_DESCRIPTIONS = "\n".join(f"- {intent}: {info['description']}" for intent, info in INTENTS.items())
 
 # Starter prompts shown in the UI before a conversation begins. Kept here so
 # backend and frontend stay in sync on what the "common inquiries" are.
@@ -134,8 +145,13 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic()
 
 
-def _conversation(state: ChatState) -> list[dict]:
-    return [*state.get("history", []), {"role": "user", "content": state["message"]}]
+def _conversation(state: ChatState, final_message: Optional[str] = None) -> list[dict]:
+    content = final_message if final_message is not None else state["message"]
+    return [*state.get("history", []), {"role": "user", "content": content}]
+
+
+def _first_text(response) -> str:
+    return next(block.text for block in response.content if block.type == "text")
 
 
 def classify(state: ChatState) -> ChatState:
@@ -147,8 +163,7 @@ def classify(state: ChatState) -> ChatState:
             system=CLASSIFY_SYSTEM,
             messages=_conversation(state),
         )
-        text = next(b.text for b in response.content if b.type == "text")
-        data = json.loads(text)
+        data = json.loads(_first_text(response))
         intents = [i for i in data["intents"] if i in KNOWN_INTENTS]
         has_unaddressed_scope = bool(data["has_unaddressed_scope"])
     except Exception:
@@ -164,9 +179,7 @@ def answer(state: ChatState) -> ChatState:
     if not intents:
         return {"draft_answer": None, "knowledge_used": []}
 
-    keys = []
-    for intent in intents:
-        keys.extend(k for k in INTENT_KNOWLEDGE_KEYS[intent] if k not in keys)
+    keys = list(dict.fromkeys(k for intent in intents for k in INTENT_KNOWLEDGE_KEYS[intent]))
 
     knowledge = load_knowledge()
     scoped_knowledge = {k: knowledge[k] for k in keys if k in knowledge}
@@ -179,7 +192,7 @@ def answer(state: ChatState) -> ChatState:
             system=f"{ANSWER_VOICE}\n\n## Knowledge\n\n{json.dumps(scoped_knowledge, indent=2)}",
             messages=_conversation(state),
         )
-        draft = next(b.text for b in response.content if b.type == "text")
+        draft = _first_text(response)
     except Exception:
         logger.exception("answer failed for intents=%s", intents)
     logger.info("answer: intents=%s knowledge_used=%s ok=%s", intents, keys, draft is not None)
@@ -215,7 +228,6 @@ def suggest_followups(state: ChatState) -> ChatState:
         f'The assistant just answered: "{state["response"]}"\n\n'
         "Suggest natural follow-up questions."
     )
-    conversation = [*state.get("history", []), {"role": "user", "content": exchange_summary}]
     suggestions = []
     try:
         response = _client().messages.create(
@@ -223,10 +235,9 @@ def suggest_followups(state: ChatState) -> ChatState:
             max_tokens=150,
             output_config={"format": {"type": "json_schema", "schema": SUGGESTIONS_SCHEMA}},
             system=SUGGEST_SYSTEM,
-            messages=conversation,
+            messages=_conversation(state, final_message=exchange_summary),
         )
-        text = next(b.text for b in response.content if b.type == "text")
-        suggestions = list(json.loads(text)["suggestions"])[:MAX_SUGGESTIONS]
+        suggestions = list(json.loads(_first_text(response))["suggestions"])[:MAX_SUGGESTIONS]
     except Exception:
         logger.exception("suggest_followups failed, returning no suggestions")
     logger.info("suggest_followups: count=%d", len(suggestions))
