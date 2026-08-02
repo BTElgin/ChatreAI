@@ -373,7 +373,15 @@ def _capture_prospect_lead(state: ChatState, history: list[dict], response: str,
         return {}
 
     if not lead.already_asked(history):
-        if history and lead.shows_buying_intent(state.get("intents", [])):
+        # Two independent reasons to offer a human follow-up instead of just the
+        # self-serve booking link: real buying intent (booking/pricing, and only
+        # once there's been a prior exchange, so this doesn't pounce on message
+        # one), or the bot just couldn't help directly at all -- escalating is
+        # exactly the moment someone might not want to book a call themselves,
+        # so this offer is relevant immediately, even on a first message.
+        shows_intent = bool(history) and lead.shows_buying_intent(state.get("intents", []))
+        is_escalating = state["escalate"] or state["has_unaddressed_scope"]
+        if shows_intent or is_escalating:
             logger.info("lead_capture: asking for contact info")
             return {"response": f"{response}\n\n{lead.LEAD_ASK_PROMPT}"}
         return {}
@@ -385,6 +393,12 @@ def _capture_prospect_lead(state: ChatState, history: list[dict], response: str,
     delivered = lead.deliver_lead(profile, {"intents": state.get("intents", []), "latest_message": state["message"]})
     note = lead.LEAD_DELIVERED_NOTE if delivered else LEAD_DELIVERY_FALLBACK_NOTE
     logger.info("lead_capture: profile complete, delivered=%s", delivered)
+    if state["escalate"]:
+        # The generic "that's outside what I can help with directly" framing
+        # doesn't make sense as a lead-in when the user's own message was just
+        # providing the contact info we asked for -- the delivery confirmation
+        # (or honest fallback) IS the answer this turn, not a tacked-on addendum.
+        return {"response": note}
     return {"response": f"{response}\n\n{note}"}
 
 
@@ -419,7 +433,7 @@ def lead_capture(state: ChatState) -> ChatState:
     # so "have we already asked" / "has this already been delivered" is derived by
     # checking past assistant turns (replayed back as history by the frontend) for
     # the fixed marker strings in app/lead.py, not tracked server-side.
-    if state["escalate"] or state["has_unaddressed_scope"]:
+    if _is_greeting_only(state):
         return {}
 
     history = state.get("history", [])
@@ -427,6 +441,11 @@ def lead_capture(state: ChatState) -> ChatState:
     profile = state.get("profile", {})
 
     if state.get("existing_customer"):
+        # Existing customers already have a known point of contact (their
+        # engagement lead) -- unlike prospects, an escalation doesn't need a
+        # separate "have someone reach out" offer layered on top.
+        if state["escalate"] or state["has_unaddressed_scope"]:
+            return {}
         return _capture_customer_signal(state, history, response, profile)
     return _capture_prospect_lead(state, history, response, profile)
 

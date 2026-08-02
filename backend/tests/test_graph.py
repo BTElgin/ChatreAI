@@ -383,25 +383,42 @@ _PRIOR_EXCHANGE = [
 ]
 
 
-def test_lead_capture_skips_when_escalating(mock_client):
-    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, escalate=True, intents=[]))
+def test_lead_capture_offers_a_human_followup_on_full_escalation(mock_client):
+    # A prospect who can't be helped directly at all is exactly the moment a
+    # self-serve booking link might not be enough -- this fires even on the
+    # very first message, unlike the buying-intent trigger below.
+    result = lead_capture(_lead_state(history=[], escalate=True, intents=[]))
+    assert LEAD_ASK_PROMPT in result["response"]
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_offers_a_human_followup_on_partial_scope(mock_client):
+    result = lead_capture(_lead_state(history=[], has_unaddressed_scope=True))
+    assert LEAD_ASK_PROMPT in result["response"]
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_existing_customers_skip_the_ask_on_escalation(mock_client):
+    # Existing customers already have a known point of contact (their
+    # engagement lead) -- no separate "have someone reach out" offer.
+    result = lead_capture(_lead_state(existing_customer=True, escalate=True, intents=[]))
     assert result == {}
     mock_client.messages.create.assert_not_called()
 
 
-def test_lead_capture_skips_when_has_unaddressed_scope(mock_client):
-    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, has_unaddressed_scope=True))
+def test_lead_capture_existing_customers_skip_the_ask_on_partial_scope(mock_client):
+    result = lead_capture(_lead_state(existing_customer=True, has_unaddressed_scope=True))
     assert result == {}
     mock_client.messages.create.assert_not_called()
 
 
-def test_lead_capture_does_not_ask_on_the_first_message(mock_client):
+def test_lead_capture_does_not_ask_on_the_first_message_without_escalating(mock_client):
     result = lead_capture(_lead_state(history=[]))
     assert result == {}
     mock_client.messages.create.assert_not_called()
 
 
-def test_lead_capture_does_not_ask_without_buying_intent(mock_client):
+def test_lead_capture_does_not_ask_without_buying_intent_or_escalation(mock_client):
     result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, intents=["about_and_industries"]))
     assert result == {}
     mock_client.messages.create.assert_not_called()
@@ -442,6 +459,25 @@ def test_lead_capture_falls_back_when_delivery_is_not_configured_or_fails(mock_c
     result = lead_capture(_lead_state(history=history, profile={"name": "Jamie", "email": "jamie@example.com"}))
     assert LEAD_DELIVERY_FALLBACK_NOTE in result["response"]
     assert LEAD_DELIVERED_NOTE not in result["response"]
+
+
+def test_lead_capture_delivery_replaces_a_redundant_escalation_message(mock_client, monkeypatch):
+    # Regression case: when the user's reply to the ask is itself unclassifiable
+    # (e.g. just "I'm Jamie, jamie@example.com" with no real question), respond()
+    # generates a generic "that's outside what I can help with directly" message
+    # again. Leading the delivery confirmation with that stale escalation framing
+    # reads as contradictory -- the confirmation should stand on its own.
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
+    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
+    result = lead_capture(
+        _lead_state(
+            history=history,
+            escalate=True,
+            response=ESCALATION_MESSAGE,
+            profile={"name": "Jamie", "email": "jamie@example.com"},
+        )
+    )
+    assert result["response"] == LEAD_DELIVERED_NOTE
 
 
 # --- lead_capture: existing-customer signal ---
@@ -700,9 +736,12 @@ def test_run_chat_greets_back_a_bare_greeting_instead_of_escalating(mock_client)
 def test_run_chat_escalates_out_of_scope_questions(mock_client):
     mock_client.messages.create.return_value = classify_response([], has_unaddressed_scope=True)
     result = run_chat("What's a good cookie recipe?")
-    assert result["response"] == ESCALATION_MESSAGE
-    # answer() must not call the model when nothing was classified, but
-    # suggest_followups always runs (classify + suggest_followups = 2 calls)
+    # A prospect who's fully escalated also gets offered a human follow-up,
+    # right alongside the escalation message.
+    assert result["response"] == f"{ESCALATION_MESSAGE}\n\n{LEAD_ASK_PROMPT}"
+    # answer() must not call the model when nothing was classified, and
+    # lead_capture's ask branch is a plain string append (no API call), so
+    # suggest_followups is still the only other caller (classify + suggest_followups = 2 calls)
     assert mock_client.messages.create.call_count == 2
 
 

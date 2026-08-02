@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.config import BOOKING_URL
 from app.graph import ESCALATION_CTA, ESCALATION_MESSAGE, STARTER_PROMPTS
+from app.lead import LEAD_ASK_PROMPT
 from app.main import app
 from conftest import classify_response, make_text_response, suggestions_response
 
@@ -83,7 +84,9 @@ def test_scenario_out_of_scope_escalates(mock_client):
     mock_client.messages.create.return_value = classify_response([], has_unaddressed_scope=True)
     response = post([{"role": "user", "text": "What's a good chocolate chip cookie recipe?"}])
     assert response.status_code == 200
-    assert response.json()["message"] == ESCALATION_MESSAGE
+    # A fully-escalated prospect also gets offered a human follow-up alongside
+    # the escalation message.
+    assert response.json()["message"] == f"{ESCALATION_MESSAGE}\n\n{LEAD_ASK_PROMPT}"
 
 
 # --- new intents: pricing, case studies ---
@@ -137,14 +140,16 @@ def test_ambiguous_message_escalates(mock_client):
     mock_client.messages.create.return_value = classify_response([], has_unaddressed_scope=True)
     response = post([{"role": "user", "text": "can you help me with that thing we talked about"}])
     assert response.status_code == 200
-    assert response.json()["message"] == ESCALATION_MESSAGE
+    assert response.json()["message"] == f"{ESCALATION_MESSAGE}\n\n{LEAD_ASK_PROMPT}"
 
 
 def test_simulated_api_failure_falls_back_to_escalation(mock_client):
     mock_client.messages.create.side_effect = RuntimeError("simulated outage")
     response = post([{"role": "user", "text": "anything"}])
     assert response.status_code == 200
-    assert response.json()["message"] == ESCALATION_MESSAGE
+    # Even during a full API outage, offering a human follow-up doesn't require
+    # the Anthropic API -- it's a plain string append, not a model call.
+    assert response.json()["message"] == f"{ESCALATION_MESSAGE}\n\n{LEAD_ASK_PROMPT}"
 
 
 def test_unexpected_endpoint_error_falls_back_gracefully(monkeypatch):
