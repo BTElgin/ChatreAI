@@ -29,9 +29,9 @@ from app.graph import (
     run_chat,
     suggest_followups,
 )
-from app.lead import LEAD_ASK_PROMPT, LEAD_DELIVERED_NOTE
+from app.lead import CUSTOMER_SIGNAL_NOTE, LEAD_ASK_PROMPT, LEAD_DELIVERED_NOTE
 from app.prompt import load_knowledge
-from conftest import classify_response, lead_response, make_text_response, suggestions_response
+from conftest import classify_response, make_text_response, suggestions_response
 
 
 # --- knowledge loading ---
@@ -115,6 +115,26 @@ def test_classify_defaults_is_greeting_to_false_on_api_failure(mock_client):
     mock_client.messages.create.side_effect = RuntimeError("boom")
     result = classify({"message": "hi", "history": []})
     assert result["is_greeting"] is False
+
+
+def test_classify_passively_extracts_a_volunteered_profile(mock_client):
+    mock_client.messages.create.return_value = classify_response(
+        ["pricing"], name="Jamie", business_name="Acme", email="jamie@example.com"
+    )
+    result = classify({"message": "I'm Jamie from Acme, what's your pricing?", "history": []})
+    assert result["profile"] == {"name": "Jamie", "business_name": "Acme", "email": "jamie@example.com"}
+
+
+def test_classify_defaults_profile_to_empty_when_nothing_volunteered(mock_client):
+    mock_client.messages.create.return_value = classify_response(["pricing"])
+    result = classify({"message": "what's your pricing?", "history": []})
+    assert result["profile"] == {}
+
+
+def test_classify_defaults_profile_to_empty_on_api_failure(mock_client):
+    mock_client.messages.create.side_effect = RuntimeError("boom")
+    result = classify({"message": "I'm Jamie", "history": []})
+    assert result["profile"] == {}
 
 
 def test_classify_sends_history_and_latest_message(mock_client):
@@ -211,6 +231,27 @@ def test_answer_omits_the_lead_pending_note_before_the_lead_has_been_asked(mock_
     assert ANSWER_VOICE_LEAD_PENDING_ADDENDUM not in system
 
 
+def test_answer_personalizes_using_the_extracted_name(mock_client):
+    mock_client.messages.create.return_value = make_text_response("answer")
+    answer(
+        {
+            "message": "what does it cost",
+            "intents": ["pricing"],
+            "history": [],
+            "profile": {"name": "Jamie"},
+        }
+    )
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert "Jamie" in system
+
+
+def test_answer_does_not_mention_a_name_when_none_was_extracted(mock_client):
+    mock_client.messages.create.return_value = make_text_response("answer")
+    answer({"message": "what does it cost", "intents": ["pricing"], "history": [], "profile": {}})
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert "person's name is" not in system
+
+
 # --- model routing ---
 
 
@@ -293,6 +334,7 @@ def _lead_state(**overrides):
         "escalate": False,
         "existing_customer": False,
         "response": "Pricing is scoped per engagement.",
+        "profile": {},
     }
     state.update(overrides)
     return state
@@ -302,12 +344,6 @@ _PRIOR_EXCHANGE = [
     {"role": "user", "content": "hi"},
     {"role": "assistant", "content": "hello, how can I help?"},
 ]
-
-
-def test_lead_capture_skips_for_existing_customers(mock_client):
-    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, existing_customer=True))
-    assert result == {}
-    mock_client.messages.create.assert_not_called()
 
 
 def test_lead_capture_skips_when_escalating(mock_client):
@@ -350,35 +386,64 @@ def test_lead_capture_does_nothing_once_already_delivered(mock_client):
 
 def test_lead_capture_leaves_the_response_unchanged_when_the_profile_is_still_incomplete(mock_client):
     history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
-    mock_client.messages.create.return_value = lead_response(name="Jamie")
-    result = lead_capture(_lead_state(message="I'm Jamie", history=history))
-    assert "response" not in result
-    assert result["lead"] == {"name": "Jamie"}
+    result = lead_capture(_lead_state(history=history, profile={"name": "Jamie"}))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
 
 
 def test_lead_capture_delivers_and_confirms_when_the_profile_is_complete(mock_client, monkeypatch):
     monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
     history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
-    mock_client.messages.create.return_value = lead_response(name="Jamie", email="jamie@example.com")
-    result = lead_capture(_lead_state(message="I'm Jamie, jamie@example.com", history=history))
+    result = lead_capture(_lead_state(history=history, profile={"name": "Jamie", "email": "jamie@example.com"}))
     assert LEAD_DELIVERED_NOTE in result["response"]
-    assert result["lead"] == {"name": "Jamie", "email": "jamie@example.com"}
+    mock_client.messages.create.assert_not_called()
 
 
 def test_lead_capture_falls_back_when_delivery_is_not_configured_or_fails(mock_client, monkeypatch):
     monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: False)
     history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
-    mock_client.messages.create.return_value = lead_response(name="Jamie", email="jamie@example.com")
-    result = lead_capture(_lead_state(message="I'm Jamie, jamie@example.com", history=history))
+    result = lead_capture(_lead_state(history=history, profile={"name": "Jamie", "email": "jamie@example.com"}))
     assert LEAD_DELIVERY_FALLBACK_NOTE in result["response"]
     assert LEAD_DELIVERED_NOTE not in result["response"]
 
 
-def test_lead_capture_returns_empty_on_extraction_failure(mock_client):
-    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
-    mock_client.messages.create.side_effect = RuntimeError("boom")
-    result = lead_capture(_lead_state(message="I'm Jamie", history=history))
+# --- lead_capture: existing-customer signal ---
+
+
+def test_lead_capture_sends_no_signal_for_an_existing_customer_with_no_name(mock_client):
+    result = lead_capture(_lead_state(existing_customer=True, profile={"business_name": "Acme"}))
     assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_delivers_a_signal_for_an_existing_customer_who_volunteered_a_name(mock_client, monkeypatch):
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
+    result = lead_capture(_lead_state(existing_customer=True, profile={"name": "Jamie"}))
+    assert CUSTOMER_SIGNAL_NOTE in result["response"]
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_stays_silent_for_an_existing_customer_when_delivery_is_not_configured(mock_client, monkeypatch):
+    # Passive, never asked -- no promise was made, so unlike the prospect flow
+    # there's no honest-fallback note owed here, just silence.
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: False)
+    result = lead_capture(_lead_state(existing_customer=True, profile={"name": "Jamie"}))
+    assert result == {}
+
+
+def test_lead_capture_does_not_resend_the_customer_signal_once_already_delivered(mock_client, monkeypatch):
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
+    history = [{"role": "assistant", "content": f"Sure. {CUSTOMER_SIGNAL_NOTE}"}]
+    result = lead_capture(_lead_state(existing_customer=True, history=history, profile={"name": "Jamie"}))
+    assert result == {}
+
+
+def test_lead_capture_never_asks_an_existing_customer_for_contact_info(mock_client):
+    # Even with buying intent and a prior exchange, existing customers must never
+    # get the explicit prospect ask -- only passive pickup applies to them.
+    result = lead_capture(_lead_state(existing_customer=True, history=_PRIOR_EXCHANGE, profile={}))
+    assert result == {}
+    assert "response" not in result
 
 
 def test_run_chat_lead_capture_full_flow_across_turns(mock_client, monkeypatch):
@@ -398,12 +463,14 @@ def test_run_chat_lead_capture_full_flow_across_turns(mock_client, monkeypatch):
     turn_2 = run_chat("What do your services cost?", history_after_turn_1)
     assert LEAD_ASK_PROMPT in turn_2["response"]
 
-    # Turn 3: the user volunteers contact info — extraction runs, the profile is
-    # complete, and the lead is delivered.
+    # Turn 3: the user volunteers contact info in their reply — classify picks it
+    # up as part of its normal call, the profile is complete, and the lead is
+    # delivered without any extra API call from lead_capture itself (3 calls this
+    # turn: classify, answer, suggest_followups — nothing extra for extraction).
+    mock_client.messages.create.reset_mock()
     mock_client.messages.create.side_effect = [
-        classify_response(["pricing"]),
+        classify_response(["pricing"], name="Jamie", email="jamie@example.com"),
         make_text_response("Great, happy to help further."),
-        lead_response(name="Jamie", email="jamie@example.com"),
         suggestions_response([]),
     ]
     history_after_turn_2 = [
@@ -413,6 +480,20 @@ def test_run_chat_lead_capture_full_flow_across_turns(mock_client, monkeypatch):
     ]
     turn_3 = run_chat("I'm Jamie, jamie@example.com", history_after_turn_2)
     assert LEAD_DELIVERED_NOTE in turn_3["response"]
+    assert mock_client.messages.create.call_count == 3
+
+
+def test_run_chat_personalizes_and_sends_a_customer_signal_for_a_self_declared_customer(mock_client, monkeypatch):
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
+    mock_client.messages.create.side_effect = [
+        classify_response(["client_portal"], existing_customer=True, name="Jamie"),
+        make_text_response("Here's how to check your agent's status."),
+        suggestions_response([]),
+    ]
+    result = run_chat("I'm Jamie -- my AI agent isn't responding, how do I check on it?")
+    answer_call = mock_client.messages.create.call_args_list[1]
+    assert "Jamie" in answer_call.kwargs["system"]
+    assert CUSTOMER_SIGNAL_NOTE in result["response"]
 
 
 # --- starter prompts / known intents sanity checks ---

@@ -87,8 +87,15 @@ CLASSIFY_SCHEMA = {
         "has_unaddressed_scope": {"type": "boolean"},
         "existing_customer": {"type": "boolean"},
         "is_greeting": {"type": "boolean"},
+        **lead.PROFILE_SCHEMA_PROPERTIES,
     },
-    "required": ["intents", "has_unaddressed_scope", "existing_customer", "is_greeting"],
+    "required": [
+        "intents",
+        "has_unaddressed_scope",
+        "existing_customer",
+        "is_greeting",
+        *lead.PROFILE_FIELDS,
+    ],
     "additionalProperties": False,
 }
 
@@ -100,7 +107,9 @@ Also set has_unaddressed_scope to true if any part of the latest message is not 
 
 Also set existing_customer to true if anywhere in the conversation the user has indicated they are already a paying Cadre AI client — e.g. they mention their account, an AI agent or system Cadre already built for them, their account manager, or say directly that they're already a client. Default to false; do not infer this just because someone asks a detailed or technical question.
 
-Also set is_greeting to true if the latest message is ONLY a greeting or basic pleasantry (e.g. "hi", "hello", "hey", "good morning") with no actual question or request attached — even if it's the very first message in the conversation. If the message greets AND asks something, set this to false; the something is what matters."""
+Also set is_greeting to true if the latest message is ONLY a greeting or basic pleasantry (e.g. "hi", "hello", "hey", "good morning") with no actual question or request attached — even if it's the very first message in the conversation. If the message greets AND asks something, set this to false; the something is what matters.
+
+Also extract any of the following the user has volunteered about themselves or their business, anywhere in the conversation so far: their name, business name, business type or category, phone number, and email address. Use an empty string for anything not mentioned. Only extract information the user actually stated — never invent, guess, or infer a value that wasn't given. This applies no matter what the conversation is about — extract it passively whenever it's there, don't wait for a specific topic."""
 
 ANSWER_VOICE_BASE = (
     "You are the support assistant for Cadre AI, a B2B AI strategy and implementation "
@@ -222,7 +231,7 @@ class ChatState(TypedDict, total=False):
     draft_answer: Optional[str]
     escalate: bool
     response: str
-    lead: dict
+    profile: dict
     suggestions: list[str]
 
 
@@ -244,7 +253,7 @@ def classify(state: ChatState) -> ChatState:
     try:
         response = _client().messages.create(
             model=CLASSIFY_MODEL,
-            max_tokens=150,
+            max_tokens=300,
             output_config={"format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA}},
             system=CLASSIFY_SYSTEM,
             messages=_conversation(state),
@@ -254,24 +263,28 @@ def classify(state: ChatState) -> ChatState:
         has_unaddressed_scope = bool(data["has_unaddressed_scope"])
         existing_customer = bool(data["existing_customer"])
         is_greeting = bool(data["is_greeting"])
+        profile = lead.filter_profile(data)
     except Exception:
         logger.exception("classify failed, defaulting to escalate")
         intents = []
         has_unaddressed_scope = True
         existing_customer = False
         is_greeting = False
+        profile = {}
     logger.info(
-        "classify: intents=%s has_unaddressed_scope=%s existing_customer=%s is_greeting=%s",
+        "classify: intents=%s has_unaddressed_scope=%s existing_customer=%s is_greeting=%s profile_keys=%s",
         intents,
         has_unaddressed_scope,
         existing_customer,
         is_greeting,
+        list(profile),
     )
     return {
         "intents": intents,
         "has_unaddressed_scope": has_unaddressed_scope,
         "existing_customer": existing_customer,
         "is_greeting": is_greeting,
+        "profile": profile,
     }
 
 
@@ -287,6 +300,12 @@ def answer(state: ChatState) -> ChatState:
     voice = ANSWER_VOICE_BASE + (
         ANSWER_VOICE_CUSTOMER_ADDENDUM if state.get("existing_customer") else ANSWER_VOICE_PROSPECT_ADDENDUM
     )
+    profile_name = state.get("profile", {}).get("name")
+    if profile_name:
+        voice += (
+            f" The person's name is {profile_name} — use it naturally if it fits (e.g. a "
+            "greeting or sign-off), don't force it into every sentence."
+        )
     history = state.get("history", [])
     if lead.already_asked(history) and not lead.already_delivered(history):
         voice += ANSWER_VOICE_LEAD_PENDING_ADDENDUM
@@ -340,17 +359,7 @@ def respond(state: ChatState) -> ChatState:
     return {"response": response}
 
 
-def lead_capture(state: ChatState) -> ChatState:
-    # Stateless by design, same as the rest of this graph: there's no session store,
-    # so "have we already asked" / "has this lead already been delivered" is derived
-    # by checking past assistant turns (replayed back as history by the frontend) for
-    # the fixed marker strings in app/lead.py, not tracked server-side.
-    if state.get("existing_customer") or state["escalate"] or state["has_unaddressed_scope"]:
-        return {}
-
-    history = state.get("history", [])
-    response = state["response"]
-
+def _capture_prospect_lead(state: ChatState, history: list[dict], response: str, profile: dict) -> ChatState:
     if lead.already_delivered(history):
         return {}
 
@@ -360,29 +369,57 @@ def lead_capture(state: ChatState) -> ChatState:
             return {"response": f"{response}\n\n{lead.LEAD_ASK_PROMPT}"}
         return {}
 
-    try:
-        api_response = _client().messages.create(
-            model=lead.LEAD_MODEL,
-            max_tokens=200,
-            output_config={"format": {"type": "json_schema", "schema": lead.LEAD_SCHEMA}},
-            system=lead.LEAD_EXTRACT_SYSTEM,
-            messages=_conversation(state),
-        )
-        profile = lead.parse_lead_response(_first_text(api_response))
-    except Exception:
-        logger.exception("lead_capture: extraction failed")
-        return {}
-
     if not lead.is_lead_complete(profile):
         logger.info("lead_capture: profile still incomplete: %s", profile)
-        return {"lead": profile}
+        return {}
 
-    delivered = lead.deliver_lead(
-        profile, {"intents": state.get("intents", []), "latest_message": state["message"]}
-    )
+    delivered = lead.deliver_lead(profile, {"intents": state.get("intents", []), "latest_message": state["message"]})
     note = lead.LEAD_DELIVERED_NOTE if delivered else LEAD_DELIVERY_FALLBACK_NOTE
     logger.info("lead_capture: profile complete, delivered=%s", delivered)
-    return {"response": f"{response}\n\n{note}", "lead": profile}
+    return {"response": f"{response}\n\n{note}"}
+
+
+def _capture_customer_signal(state: ChatState, history: list[dict], response: str, profile: dict) -> ChatState:
+    # No explicit ask for existing customers — this is purely passive (whatever
+    # was volunteered elsewhere in the conversation) and lower-stakes than a new
+    # lead: it's a context note for their own account team, not a sales handoff.
+    # If delivery isn't configured, stay silent rather than narrating an internal
+    # failure for something the user never asked to be sent anywhere.
+    if not lead.is_customer_signal_worth_sending(profile):
+        return {}
+    if lead.already_delivered(history, marker=lead.CUSTOMER_SIGNAL_NOTE):
+        return {}
+
+    delivered = lead.deliver_lead(
+        profile,
+        {
+            "signal_type": "existing_customer_engagement",
+            "intents": state.get("intents", []),
+            "latest_message": state["message"],
+        },
+    )
+    if not delivered:
+        return {}
+
+    logger.info("lead_capture: existing-customer signal delivered: %s", profile)
+    return {"response": f"{response}\n\n{lead.CUSTOMER_SIGNAL_NOTE}"}
+
+
+def lead_capture(state: ChatState) -> ChatState:
+    # Stateless by design, same as the rest of this graph: there's no session store,
+    # so "have we already asked" / "has this already been delivered" is derived by
+    # checking past assistant turns (replayed back as history by the frontend) for
+    # the fixed marker strings in app/lead.py, not tracked server-side.
+    if state["escalate"] or state["has_unaddressed_scope"]:
+        return {}
+
+    history = state.get("history", [])
+    response = state["response"]
+    profile = state.get("profile", {})
+
+    if state.get("existing_customer"):
+        return _capture_customer_signal(state, history, response, profile)
+    return _capture_prospect_lead(state, history, response, profile)
 
 
 def suggest_followups(state: ChatState) -> ChatState:
