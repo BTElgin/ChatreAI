@@ -6,7 +6,9 @@ from app.graph import (
     ANSWER_VOICE_CUSTOMER_ADDENDUM,
     ANSWER_VOICE_PROSPECT_ADDENDUM,
     CLASSIFY_MODEL,
+    ESCALATION_CTA,
     ESCALATION_MESSAGE,
+    EXISTING_CUSTOMER_ESCALATION_CTA,
     HISTORY_WINDOW,
     INTENT_KNOWLEDGE_KEYS,
     KNOWN_INTENTS,
@@ -279,6 +281,25 @@ def test_respond_appends_the_partial_escalation_note():
     assert result["response"] == f"Here you go.{PARTIAL_ESCALATION_NOTE}"
 
 
+def test_respond_routes_existing_customers_to_their_engagement_lead_on_full_escalation():
+    result = respond({"escalate": True, "existing_customer": True})
+    assert EXISTING_CUSTOMER_ESCALATION_CTA in result["response"]
+    assert ESCALATION_CTA not in result["response"]
+
+
+def test_respond_routes_existing_customers_to_their_engagement_lead_on_partial_escalation():
+    result = respond(
+        {
+            "escalate": False,
+            "draft_answer": "Here you go.",
+            "has_unaddressed_scope": True,
+            "existing_customer": True,
+        }
+    )
+    assert EXISTING_CUSTOMER_ESCALATION_CTA in result["response"]
+    assert ESCALATION_CTA not in result["response"]
+
+
 # --- run_chat (full graph) ---
 
 
@@ -308,6 +329,20 @@ def test_run_chat_propagates_existing_customer_into_the_answer_voice(mock_client
     run_chat("my AI agent isn't responding, how do I check on it?")
     answer_call = mock_client.messages.create.call_args_list[1]
     assert ANSWER_VOICE_CUSTOMER_ADDENDUM in answer_call.kwargs["system"]
+
+
+def test_run_chat_routes_existing_customers_to_their_engagement_lead_on_partial_escalation(mock_client):
+    # Regression test: an existing customer's answer used to get a well-tailored,
+    # customer-framed response that was then undercut by a generic prospect-facing
+    # "book a call with a Cadre AI strategist" tail whenever has_unaddressed_scope
+    # was also true — jarring and self-contradictory in production.
+    mock_client.messages.create.side_effect = [
+        classify_response(["client_portal"], has_unaddressed_scope=True, existing_customer=True),
+        make_text_response("Here's how to check your agent's status."),
+    ]
+    result = run_chat("I already use Cadre — how do I check on my agent, and also what's a good cookie recipe?")
+    assert EXISTING_CUSTOMER_ESCALATION_CTA in result["response"]
+    assert ESCALATION_CTA not in result["response"]
 
 
 def test_run_chat_windows_long_history(mock_client):

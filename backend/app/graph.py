@@ -120,11 +120,29 @@ ANSWER_VOICE_CUSTOMER_ADDENDUM = (
 )
 
 ESCALATION_CTA = f"[book a call with a Cadre AI strategist]({BOOKING_URL}), who can dig into specifics with you"
-ESCALATION_MESSAGE = f"That's outside what I can help with directly. The best next step is to {ESCALATION_CTA}."
-PARTIAL_ESCALATION_NOTE = (
-    f"\n\nOne part of your question is outside what I can help with directly here — "
-    f"for that, the best next step is to {ESCALATION_CTA}."
-)
+EXISTING_CUSTOMER_ESCALATION_CTA = "reach out to your Cadre engagement lead directly, who can dig into specifics with you"
+
+
+def _escalation_cta(existing_customer: bool) -> str:
+    return EXISTING_CUSTOMER_ESCALATION_CTA if existing_customer else ESCALATION_CTA
+
+
+def _escalation_message(existing_customer: bool) -> str:
+    return f"That's outside what I can help with directly. The best next step is to {_escalation_cta(existing_customer)}."
+
+
+def _partial_escalation_note(existing_customer: bool) -> str:
+    return (
+        f"\n\nOne part of your question is outside what I can help with directly here — "
+        f"for that, the best next step is to {_escalation_cta(existing_customer)}."
+    )
+
+
+# Prospect-facing defaults — used as the safe fallback where no existing_customer
+# signal exists yet (e.g. main.py's outer exception handler, which catches errors
+# before/outside the graph and so has no state to read the flag from).
+ESCALATION_MESSAGE = _escalation_message(False)
+PARTIAL_ESCALATION_NOTE = _partial_escalation_note(False)
 
 SUGGESTIONS_SCHEMA = {
     "type": "object",
@@ -250,11 +268,12 @@ def escalation_check(state: ChatState) -> ChatState:
 
 
 def respond(state: ChatState) -> ChatState:
+    existing_customer = state.get("existing_customer", False)
     if state["escalate"]:
-        return {"response": ESCALATION_MESSAGE}
+        return {"response": _escalation_message(existing_customer)}
     response = state["draft_answer"]
     if state["has_unaddressed_scope"]:
-        response = f"{response}{PARTIAL_ESCALATION_NOTE}"
+        response = f"{response}{_partial_escalation_note(existing_customer)}"
     return {"response": response}
 
 
