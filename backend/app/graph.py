@@ -6,6 +6,7 @@ from typing import Optional, TypedDict
 import anthropic
 from langgraph.graph import END, StateGraph
 
+from app import lead
 from app.config import BOOKING_URL
 from app.prompt import load_knowledge
 
@@ -119,6 +120,17 @@ ANSWER_VOICE_CUSTOMER_ADDENDUM = (
     "them on becoming a client; they already are one."
 )
 
+# Appended when the lead_capture node has already asked for contact info and is
+# waiting to hear back — without this, answer() (which has no idea lead_capture
+# exists) will naturally write things like "someone will follow up" on its own,
+# which then contradicts lead_capture's own delivery confirmation (or honest
+# failure note) appended right after it in the same response.
+ANSWER_VOICE_LEAD_PENDING_ADDENDUM = (
+    " If this message includes the user's contact info, thank them briefly and keep "
+    "answering their question — don't promise that someone will follow up or confirm "
+    "their info was received; that confirmation is handled separately, right after this."
+)
+
 ESCALATION_CTA = f"[book a call with a Cadre AI strategist]({BOOKING_URL}), who can dig into specifics with you"
 EXISTING_CUSTOMER_ESCALATION_CTA = "reach out to your Cadre engagement lead directly, who can dig into specifics with you"
 
@@ -143,6 +155,14 @@ def _partial_escalation_note(existing_customer: bool) -> str:
 # before/outside the graph and so has no state to read the flag from).
 ESCALATION_MESSAGE = _escalation_message(False)
 PARTIAL_ESCALATION_NOTE = _partial_escalation_note(False)
+
+# Shown instead of lead.LEAD_DELIVERED_NOTE when lead.deliver_lead() returns False
+# (no webhook configured, or the POST failed) — never claim the info was sent
+# anywhere when it wasn't; fall back to the same booking link every other escalation uses.
+LEAD_DELIVERY_FALLBACK_NOTE = (
+    f"Thanks for sharing that — I wasn't able to pass it along automatically just now. "
+    f"The fastest path from here is to {ESCALATION_CTA}."
+)
 
 SUGGESTIONS_SCHEMA = {
     "type": "object",
@@ -174,6 +194,7 @@ class ChatState(TypedDict, total=False):
     draft_answer: Optional[str]
     escalate: bool
     response: str
+    lead: dict
     suggestions: list[str]
 
 
@@ -234,6 +255,9 @@ def answer(state: ChatState) -> ChatState:
     voice = ANSWER_VOICE_BASE + (
         ANSWER_VOICE_CUSTOMER_ADDENDUM if state.get("existing_customer") else ANSWER_VOICE_PROSPECT_ADDENDUM
     )
+    history = state.get("history", [])
+    if lead.already_asked(history) and not lead.already_delivered(history):
+        voice += ANSWER_VOICE_LEAD_PENDING_ADDENDUM
     draft = None
     try:
         response = _client().messages.create(
@@ -277,6 +301,51 @@ def respond(state: ChatState) -> ChatState:
     return {"response": response}
 
 
+def lead_capture(state: ChatState) -> ChatState:
+    # Stateless by design, same as the rest of this graph: there's no session store,
+    # so "have we already asked" / "has this lead already been delivered" is derived
+    # by checking past assistant turns (replayed back as history by the frontend) for
+    # the fixed marker strings in app/lead.py, not tracked server-side.
+    if state.get("existing_customer") or state["escalate"] or state["has_unaddressed_scope"]:
+        return {}
+
+    history = state.get("history", [])
+    response = state["response"]
+
+    if lead.already_delivered(history):
+        return {}
+
+    if not lead.already_asked(history):
+        if history and lead.shows_buying_intent(state.get("intents", [])):
+            logger.info("lead_capture: asking for contact info")
+            return {"response": f"{response}\n\n{lead.LEAD_ASK_PROMPT}"}
+        return {}
+
+    try:
+        api_response = _client().messages.create(
+            model=lead.LEAD_MODEL,
+            max_tokens=200,
+            output_config={"format": {"type": "json_schema", "schema": lead.LEAD_SCHEMA}},
+            system=lead.LEAD_EXTRACT_SYSTEM,
+            messages=_conversation(state),
+        )
+        profile = lead.parse_lead_response(_first_text(api_response))
+    except Exception:
+        logger.exception("lead_capture: extraction failed")
+        return {}
+
+    if not lead.is_lead_complete(profile):
+        logger.info("lead_capture: profile still incomplete: %s", profile)
+        return {"lead": profile}
+
+    delivered = lead.deliver_lead(
+        profile, {"intents": state.get("intents", []), "latest_message": state["message"]}
+    )
+    note = lead.LEAD_DELIVERED_NOTE if delivered else LEAD_DELIVERY_FALLBACK_NOTE
+    logger.info("lead_capture: profile complete, delivered=%s", delivered)
+    return {"response": f"{response}\n\n{note}", "lead": profile}
+
+
 def suggest_followups(state: ChatState) -> ChatState:
     # Structured outputs reject a request ending in an `assistant` message (it
     # looks like a disallowed prefill), so the just-given answer is folded into
@@ -308,13 +377,15 @@ def build_graph():
     graph.add_node("answer", answer)
     graph.add_node("escalation_check", escalation_check)
     graph.add_node("respond", respond)
+    graph.add_node("lead_capture", lead_capture)
     graph.add_node("suggest_followups", suggest_followups)
 
     graph.set_entry_point("classify")
     graph.add_edge("classify", "answer")
     graph.add_edge("answer", "escalation_check")
     graph.add_edge("escalation_check", "respond")
-    graph.add_edge("respond", "suggest_followups")
+    graph.add_edge("respond", "lead_capture")
+    graph.add_edge("lead_capture", "suggest_followups")
     graph.add_edge("suggest_followups", END)
 
     return graph.compile()

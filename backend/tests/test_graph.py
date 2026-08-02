@@ -4,6 +4,7 @@ from app.config import BOOKING_URL
 from app.graph import (
     ANSWER_MODEL,
     ANSWER_VOICE_CUSTOMER_ADDENDUM,
+    ANSWER_VOICE_LEAD_PENDING_ADDENDUM,
     ANSWER_VOICE_PROSPECT_ADDENDUM,
     CLASSIFY_MODEL,
     ESCALATION_CTA,
@@ -12,6 +13,7 @@ from app.graph import (
     HISTORY_WINDOW,
     INTENT_KNOWLEDGE_KEYS,
     KNOWN_INTENTS,
+    LEAD_DELIVERY_FALLBACK_NOTE,
     MAX_SUGGESTIONS,
     PARTIAL_ESCALATION_NOTE,
     STARTER_PROMPTS,
@@ -19,12 +21,14 @@ from app.graph import (
     answer,
     classify,
     escalation_check,
+    lead_capture,
     respond,
     run_chat,
     suggest_followups,
 )
+from app.lead import LEAD_ASK_PROMPT, LEAD_DELIVERED_NOTE
 from app.prompt import load_knowledge
-from conftest import classify_response, make_text_response, suggestions_response
+from conftest import classify_response, lead_response, make_text_response, suggestions_response
 
 
 # --- knowledge loading ---
@@ -155,6 +159,32 @@ def test_answer_uses_the_customer_voice_for_existing_customers(mock_client):
     assert ANSWER_VOICE_PROSPECT_ADDENDUM not in system
 
 
+def test_answer_tells_the_model_not_to_promise_followup_while_a_lead_is_pending(mock_client):
+    # Regression test: without this, answer() (which has no idea lead_capture
+    # exists) would naturally write "someone will follow up" on its own, directly
+    # contradicting lead_capture's own confirmation/fallback appended right after.
+    mock_client.messages.create.return_value = make_text_response("answer")
+    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
+    answer({"message": "I'm Jamie, jamie@example.com", "intents": ["pricing"], "history": history})
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert ANSWER_VOICE_LEAD_PENDING_ADDENDUM in system
+
+
+def test_answer_omits_the_lead_pending_note_once_already_delivered(mock_client):
+    mock_client.messages.create.return_value = make_text_response("answer")
+    history = [{"role": "assistant", "content": f"Thanks. {LEAD_DELIVERED_NOTE}"}]
+    answer({"message": "anything else?", "intents": ["pricing"], "history": history})
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert ANSWER_VOICE_LEAD_PENDING_ADDENDUM not in system
+
+
+def test_answer_omits_the_lead_pending_note_before_the_lead_has_been_asked(mock_client):
+    mock_client.messages.create.return_value = make_text_response("answer")
+    answer({"message": "what does it cost", "intents": ["pricing"], "history": []})
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert ANSWER_VOICE_LEAD_PENDING_ADDENDUM not in system
+
+
 # --- model routing ---
 
 
@@ -223,6 +253,140 @@ def test_suggest_followups_includes_the_response_in_context(mock_client):
     assert sent[-1]["role"] == "user"
     assert "How do I book?" in sent[-1]["content"]
     assert "Here's how to book." in sent[-1]["content"]
+
+
+# --- lead_capture ---
+
+
+def _lead_state(**overrides):
+    state = {
+        "message": "what does it cost",
+        "history": [],
+        "intents": ["pricing"],
+        "has_unaddressed_scope": False,
+        "escalate": False,
+        "existing_customer": False,
+        "response": "Pricing is scoped per engagement.",
+    }
+    state.update(overrides)
+    return state
+
+
+_PRIOR_EXCHANGE = [
+    {"role": "user", "content": "hi"},
+    {"role": "assistant", "content": "hello, how can I help?"},
+]
+
+
+def test_lead_capture_skips_for_existing_customers(mock_client):
+    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, existing_customer=True))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_skips_when_escalating(mock_client):
+    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, escalate=True, intents=[]))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_skips_when_has_unaddressed_scope(mock_client):
+    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, has_unaddressed_scope=True))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_does_not_ask_on_the_first_message(mock_client):
+    result = lead_capture(_lead_state(history=[]))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_does_not_ask_without_buying_intent(mock_client):
+    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE, intents=["about_and_industries"]))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_asks_when_buying_intent_and_a_prior_exchange_exist(mock_client):
+    result = lead_capture(_lead_state(history=_PRIOR_EXCHANGE))
+    assert LEAD_ASK_PROMPT in result["response"]
+    assert result["response"].startswith("Pricing is scoped per engagement.")
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_does_nothing_once_already_delivered(mock_client):
+    history = [{"role": "assistant", "content": f"Thanks. {LEAD_DELIVERED_NOTE}"}]
+    result = lead_capture(_lead_state(history=history))
+    assert result == {}
+    mock_client.messages.create.assert_not_called()
+
+
+def test_lead_capture_leaves_the_response_unchanged_when_the_profile_is_still_incomplete(mock_client):
+    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
+    mock_client.messages.create.return_value = lead_response(name="Jamie")
+    result = lead_capture(_lead_state(message="I'm Jamie", history=history))
+    assert "response" not in result
+    assert result["lead"] == {"name": "Jamie"}
+
+
+def test_lead_capture_delivers_and_confirms_when_the_profile_is_complete(mock_client, monkeypatch):
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
+    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
+    mock_client.messages.create.return_value = lead_response(name="Jamie", email="jamie@example.com")
+    result = lead_capture(_lead_state(message="I'm Jamie, jamie@example.com", history=history))
+    assert LEAD_DELIVERED_NOTE in result["response"]
+    assert result["lead"] == {"name": "Jamie", "email": "jamie@example.com"}
+
+
+def test_lead_capture_falls_back_when_delivery_is_not_configured_or_fails(mock_client, monkeypatch):
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: False)
+    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
+    mock_client.messages.create.return_value = lead_response(name="Jamie", email="jamie@example.com")
+    result = lead_capture(_lead_state(message="I'm Jamie, jamie@example.com", history=history))
+    assert LEAD_DELIVERY_FALLBACK_NOTE in result["response"]
+    assert LEAD_DELIVERED_NOTE not in result["response"]
+
+
+def test_lead_capture_returns_empty_on_extraction_failure(mock_client):
+    history = [{"role": "assistant", "content": f"Sure. {LEAD_ASK_PROMPT}"}]
+    mock_client.messages.create.side_effect = RuntimeError("boom")
+    result = lead_capture(_lead_state(message="I'm Jamie", history=history))
+    assert result == {}
+
+
+def test_run_chat_lead_capture_full_flow_across_turns(mock_client, monkeypatch):
+    monkeypatch.setattr("app.graph.lead.deliver_lead", lambda profile, context: True)
+
+    # Turn 2: there's already one prior exchange in history, and this message
+    # shows buying intent (pricing) — the answer should get the ask appended.
+    mock_client.messages.create.side_effect = [
+        classify_response(["pricing"]),
+        make_text_response("Pricing is scoped per engagement."),
+        suggestions_response([]),
+    ]
+    history_after_turn_1 = [
+        {"role": "user", "content": "What does Cadre AI do?"},
+        {"role": "assistant", "content": "Cadre AI is a consultancy."},
+    ]
+    turn_2 = run_chat("What do your services cost?", history_after_turn_1)
+    assert LEAD_ASK_PROMPT in turn_2["response"]
+
+    # Turn 3: the user volunteers contact info — extraction runs, the profile is
+    # complete, and the lead is delivered.
+    mock_client.messages.create.side_effect = [
+        classify_response(["pricing"]),
+        make_text_response("Great, happy to help further."),
+        lead_response(name="Jamie", email="jamie@example.com"),
+        suggestions_response([]),
+    ]
+    history_after_turn_2 = [
+        *history_after_turn_1,
+        {"role": "user", "content": "What do your services cost?"},
+        {"role": "assistant", "content": turn_2["response"]},
+    ]
+    turn_3 = run_chat("I'm Jamie, jamie@example.com", history_after_turn_2)
+    assert LEAD_DELIVERED_NOTE in turn_3["response"]
 
 
 # --- starter prompts / known intents sanity checks ---

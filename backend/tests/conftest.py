@@ -30,6 +30,20 @@ def suggestions_response(suggestions) -> MagicMock:
     return make_text_response(json.dumps({"suggestions": suggestions}))
 
 
+def lead_response(name="", business_name="", business_type="", phone="", email="") -> MagicMock:
+    return make_text_response(
+        json.dumps(
+            {
+                "name": name,
+                "business_name": business_name,
+                "business_type": business_type,
+                "phone": phone,
+                "email": email,
+            }
+        )
+    )
+
+
 @pytest.fixture
 def mock_client(monkeypatch):
     """Replace app.graph's Anthropic client with a MagicMock — no live API key or tokens."""
