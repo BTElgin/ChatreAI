@@ -28,7 +28,11 @@ MAX_SUGGESTIONS = 3
 # derive from this so a new intent only needs one entry, not three.
 INTENTS = {
     "about_and_industries": {
-        "description": "what Cadre AI does, and whether it serves the asker's industry",
+        "description": (
+            "what Cadre AI does and its services, whether it serves the asker's industry, or — "
+            "for an existing client — what else Cadre offers that could help them get more value "
+            "or expand their current engagement"
+        ),
         "knowledge_keys": ["company", "services", "industries_served"],
     },
     "booking": {

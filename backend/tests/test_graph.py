@@ -14,6 +14,7 @@ from app.graph import (
     GREETING_RESPONSE,
     HISTORY_WINDOW,
     INTENT_KNOWLEDGE_KEYS,
+    INTENTS,
     KNOWN_INTENTS,
     LEAD_DELIVERY_FALLBACK_NOTE,
     MAX_SUGGESTIONS,
@@ -432,6 +433,15 @@ def test_every_intent_knowledge_key_exists_in_the_knowledge_base():
     for intent, keys in INTENT_KNOWLEDGE_KEYS.items():
         for key in keys:
             assert key in knowledge, f"{intent} references missing knowledge key {key!r}"
+
+
+def test_about_and_industries_covers_existing_customer_expansion_questions():
+    # Regression test: "I'd love to improve my current Cadre AI plan" used to fall
+    # through every intent (nothing matched "improve my plan" literally) and escalate
+    # before answer()'s existing-customer voice ever got a chance to run, even though
+    # the services knowledge this intent already carries is exactly the right content
+    # to answer with. The description needs to explicitly invite that phrasing.
+    assert "existing client" in INTENTS["about_and_industries"]["description"]
 
 
 # --- escalation_check ---
