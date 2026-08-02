@@ -82,8 +82,9 @@ CLASSIFY_SCHEMA = {
         },
         "has_unaddressed_scope": {"type": "boolean"},
         "existing_customer": {"type": "boolean"},
+        "is_greeting": {"type": "boolean"},
     },
-    "required": ["intents", "has_unaddressed_scope", "existing_customer"],
+    "required": ["intents", "has_unaddressed_scope", "existing_customer", "is_greeting"],
     "additionalProperties": False,
 }
 
@@ -93,7 +94,9 @@ CLASSIFY_SYSTEM = f"""Identify which of the following categories the user's LATE
 
 Also set has_unaddressed_scope to true if any part of the latest message is not covered by the categories above — this includes messages that are genuinely ambiguous or unclear, and multi-part messages where only some parts match a category.
 
-Also set existing_customer to true if anywhere in the conversation the user has indicated they are already a paying Cadre AI client — e.g. they mention their account, an AI agent or system Cadre already built for them, their account manager, or say directly that they're already a client. Default to false; do not infer this just because someone asks a detailed or technical question."""
+Also set existing_customer to true if anywhere in the conversation the user has indicated they are already a paying Cadre AI client — e.g. they mention their account, an AI agent or system Cadre already built for them, their account manager, or say directly that they're already a client. Default to false; do not infer this just because someone asks a detailed or technical question.
+
+Also set is_greeting to true if the latest message is ONLY a greeting or basic pleasantry (e.g. "hi", "hello", "hey", "good morning") with no actual question or request attached — even if it's the very first message in the conversation. If the message greets AND asks something, set this to false; the something is what matters."""
 
 ANSWER_VOICE_BASE = (
     "You are the support assistant for Cadre AI, a B2B AI strategy and implementation "
@@ -164,6 +167,19 @@ LEAD_DELIVERY_FALLBACK_NOTE = (
     f"The fastest path from here is to {ESCALATION_CTA}."
 )
 
+# Shown for a standalone greeting (no other content in the message) instead of the
+# full escalation message — a bare "hi" genuinely doesn't match any known intent,
+# but treating it like an out-of-scope question and pushing a booking link on it
+# is needlessly heavy-handed for a simple hello.
+GREETING_RESPONSE = (
+    "Hi there! I'm the Cadre AI assistant — happy to help with questions about what Cadre "
+    "does, pricing, case studies, booking a call, and more. What can I help you with?"
+)
+EXISTING_CUSTOMER_GREETING_RESPONSE = (
+    "Hi there! Happy to help — ask me anything about your engagement, or let me know if "
+    "you'd like to explore other ways Cadre could help."
+)
+
 SUGGESTIONS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -190,6 +206,7 @@ class ChatState(TypedDict, total=False):
     intents: list[str]
     has_unaddressed_scope: bool
     existing_customer: bool
+    is_greeting: bool
     knowledge_used: list[str]
     draft_answer: Optional[str]
     escalate: bool
@@ -225,21 +242,25 @@ def classify(state: ChatState) -> ChatState:
         intents = [i for i in data["intents"] if i in KNOWN_INTENTS]
         has_unaddressed_scope = bool(data["has_unaddressed_scope"])
         existing_customer = bool(data["existing_customer"])
+        is_greeting = bool(data["is_greeting"])
     except Exception:
         logger.exception("classify failed, defaulting to escalate")
         intents = []
         has_unaddressed_scope = True
         existing_customer = False
+        is_greeting = False
     logger.info(
-        "classify: intents=%s has_unaddressed_scope=%s existing_customer=%s",
+        "classify: intents=%s has_unaddressed_scope=%s existing_customer=%s is_greeting=%s",
         intents,
         has_unaddressed_scope,
         existing_customer,
+        is_greeting,
     )
     return {
         "intents": intents,
         "has_unaddressed_scope": has_unaddressed_scope,
         "existing_customer": existing_customer,
+        "is_greeting": is_greeting,
     }
 
 
@@ -280,12 +301,17 @@ def answer(state: ChatState) -> ChatState:
     return {"draft_answer": draft, "knowledge_used": keys}
 
 
+def _is_greeting_only(state: ChatState) -> bool:
+    return bool(state.get("is_greeting")) and not state["intents"]
+
+
 def escalation_check(state: ChatState) -> ChatState:
-    escalate = not state["intents"] or not state.get("draft_answer")
+    escalate = not _is_greeting_only(state) and (not state["intents"] or not state.get("draft_answer"))
     logger.info(
-        "escalation_check: intents=%s has_unaddressed_scope=%s escalate=%s",
+        "escalation_check: intents=%s has_unaddressed_scope=%s is_greeting_only=%s escalate=%s",
         state["intents"],
         state["has_unaddressed_scope"],
+        _is_greeting_only(state),
         escalate,
     )
     return {"escalate": escalate}
@@ -293,6 +319,8 @@ def escalation_check(state: ChatState) -> ChatState:
 
 def respond(state: ChatState) -> ChatState:
     existing_customer = state.get("existing_customer", False)
+    if _is_greeting_only(state):
+        return {"response": EXISTING_CUSTOMER_GREETING_RESPONSE if existing_customer else GREETING_RESPONSE}
     if state["escalate"]:
         return {"response": _escalation_message(existing_customer)}
     response = state["draft_answer"]

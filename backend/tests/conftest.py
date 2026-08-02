@@ -14,13 +14,14 @@ def make_text_response(text: str) -> MagicMock:
     return response
 
 
-def classify_response(intents, has_unaddressed_scope=False, existing_customer=False) -> MagicMock:
+def classify_response(intents, has_unaddressed_scope=False, existing_customer=False, is_greeting=False) -> MagicMock:
     return make_text_response(
         json.dumps(
             {
                 "intents": intents,
                 "has_unaddressed_scope": has_unaddressed_scope,
                 "existing_customer": existing_customer,
+                "is_greeting": is_greeting,
             }
         )
     )

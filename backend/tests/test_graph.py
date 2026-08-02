@@ -10,6 +10,8 @@ from app.graph import (
     ESCALATION_CTA,
     ESCALATION_MESSAGE,
     EXISTING_CUSTOMER_ESCALATION_CTA,
+    EXISTING_CUSTOMER_GREETING_RESPONSE,
+    GREETING_RESPONSE,
     HISTORY_WINDOW,
     INTENT_KNOWLEDGE_KEYS,
     KNOWN_INTENTS,
@@ -64,7 +66,12 @@ def test_classify_flags_unaddressed_scope(mock_client):
 def test_classify_drops_unknown_intents_from_the_model(mock_client):
     mock_client.messages.create.return_value = make_text_response(
         json.dumps(
-            {"intents": ["booking", "made_up_intent"], "has_unaddressed_scope": False, "existing_customer": False}
+            {
+                "intents": ["booking", "made_up_intent"],
+                "has_unaddressed_scope": False,
+                "existing_customer": False,
+                "is_greeting": False,
+            }
         )
     )
     result = classify({"message": "anything", "history": []})
@@ -89,6 +96,24 @@ def test_classify_defaults_existing_customer_to_false(mock_client):
     mock_client.messages.create.return_value = classify_response(["booking"])
     result = classify({"message": "How do I book a call?", "history": []})
     assert result["existing_customer"] is False
+
+
+def test_classify_flags_a_bare_greeting(mock_client):
+    mock_client.messages.create.return_value = classify_response([], is_greeting=True)
+    result = classify({"message": "hi", "history": []})
+    assert result["is_greeting"] is True
+
+
+def test_classify_defaults_is_greeting_to_false(mock_client):
+    mock_client.messages.create.return_value = classify_response(["booking"])
+    result = classify({"message": "How do I book a call?", "history": []})
+    assert result["is_greeting"] is False
+
+
+def test_classify_defaults_is_greeting_to_false_on_api_failure(mock_client):
+    mock_client.messages.create.side_effect = RuntimeError("boom")
+    result = classify({"message": "hi", "history": []})
+    assert result["is_greeting"] is False
 
 
 def test_classify_sends_history_and_latest_message(mock_client):
@@ -427,12 +452,45 @@ def test_escalation_check_does_not_escalate_on_a_grounded_answer():
     assert result["escalate"] is False
 
 
+def test_escalation_check_does_not_escalate_on_a_bare_greeting():
+    result = escalation_check({"intents": [], "has_unaddressed_scope": True, "is_greeting": True})
+    assert result["escalate"] is False
+
+
+def test_escalation_check_does_not_treat_a_matched_intent_as_greeting_only():
+    # Guards the not-intents half of _is_greeting_only: even if classify ever set
+    # is_greeting=True alongside a real matched intent (e.g. "hi, how do I book a
+    # call?"), a matched intent means there's a real answer to give, so this must
+    # follow the normal answer path, not the bare-greeting shortcut.
+    result = escalation_check(
+        {"intents": ["booking"], "has_unaddressed_scope": False, "is_greeting": True, "draft_answer": "text"}
+    )
+    assert result["escalate"] is False
+
+
 # --- respond ---
 
 
 def test_respond_returns_the_standard_escalation_message():
     result = respond({"escalate": True})
     assert result["response"] == ESCALATION_MESSAGE
+
+
+def test_respond_returns_a_friendly_greeting_instead_of_escalating():
+    result = respond({"escalate": True, "intents": [], "is_greeting": True})
+    assert result["response"] == GREETING_RESPONSE
+
+
+def test_respond_returns_the_customer_greeting_for_existing_customers():
+    result = respond({"escalate": True, "intents": [], "is_greeting": True, "existing_customer": True})
+    assert result["response"] == EXISTING_CUSTOMER_GREETING_RESPONSE
+
+
+def test_respond_does_not_treat_a_matched_intent_as_greeting_only():
+    result = respond(
+        {"escalate": False, "intents": ["booking"], "is_greeting": True, "draft_answer": "Here you go.", "has_unaddressed_scope": False}
+    )
+    assert result["response"] == "Here you go."
 
 
 def test_respond_returns_the_draft_answer_unchanged_when_fully_in_scope():
@@ -474,6 +532,17 @@ def test_run_chat_answers_an_in_scope_question(mock_client):
     ]
     result = run_chat("How do I book a call?")
     assert result["response"] == "Book a call from the website."
+
+
+def test_run_chat_greets_back_a_bare_greeting_instead_of_escalating(mock_client):
+    mock_client.messages.create.side_effect = [
+        classify_response([], has_unaddressed_scope=True, is_greeting=True),
+        suggestions_response([]),
+    ]
+    result = run_chat("hi")
+    assert result["response"] == GREETING_RESPONSE
+    # answer() must not call the model for a bare greeting either (no intents matched)
+    assert mock_client.messages.create.call_count == 2
 
 
 def test_run_chat_escalates_out_of_scope_questions(mock_client):
