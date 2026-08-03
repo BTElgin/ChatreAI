@@ -17,7 +17,6 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [bookingUrl, setBookingUrl] = useState<string | null>(null)
   const [starterPrompts, setStarterPrompts] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -31,7 +30,6 @@ function App() {
     fetch('/api/config')
       .then((response) => response.json())
       .then((data) => {
-        setBookingUrl(data.bookingUrl)
         setStarterPrompts(data.starterPrompts ?? [])
       })
       .catch(() => {})
@@ -80,11 +78,6 @@ function App() {
         <h1>
           Cadre AI <span className="accent">Chat</span>
         </h1>
-        {bookingUrl && (
-          <a className="book-call-link" href={bookingUrl} target="_blank" rel="noopener noreferrer">
-            Book a Call
-          </a>
-        )}
       </header>
       <div className="messages">
         {messages.map((message, index) => (

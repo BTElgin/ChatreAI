@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.config import BOOKING_URL
 from app.graph import ESCALATION_MESSAGE, STARTER_PROMPTS, run_chat
 
 load_dotenv()
@@ -32,13 +31,12 @@ class ChatResponse(BaseModel):
 
 
 class ConfigResponse(BaseModel):
-    bookingUrl: str
     starterPrompts: list[str]
 
 
 @app.get("/api/config", response_model=ConfigResponse)
 async def config() -> ConfigResponse:
-    return ConfigResponse(bookingUrl=BOOKING_URL, starterPrompts=STARTER_PROMPTS)
+    return ConfigResponse(starterPrompts=STARTER_PROMPTS)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

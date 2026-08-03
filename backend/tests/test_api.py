@@ -16,10 +16,10 @@ def post(messages):
 # --- config ---
 
 
-def test_config_returns_the_booking_url_and_starter_prompts():
+def test_config_returns_the_starter_prompts():
     response = client.get("/api/config")
     assert response.status_code == 200
-    assert response.json() == {"bookingUrl": BOOKING_URL, "starterPrompts": STARTER_PROMPTS}
+    assert response.json() == {"starterPrompts": STARTER_PROMPTS}
 
 
 def test_escalation_cta_is_a_markdown_link_to_the_booking_url():
