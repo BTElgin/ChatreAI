@@ -27,11 +27,11 @@ def filter_profile(data: dict) -> dict:
 # store — the conversation transcript itself is the only state this project has.
 LEAD_ASK_PROMPT = (
     "By the way, if it'd help to have someone from Cadre reach out directly, just share "
-    "your name and the best email or phone to reach you, and your business name if you'd "
-    "like — no pressure either way."
+    "your name and the best email or phone to reach you (your business name too, if you "
+    "want). No pressure either way."
 )
 
-LEAD_DELIVERED_NOTE = "Thanks — I've passed your details along to the Cadre team, and someone will reach out directly."
+LEAD_DELIVERED_NOTE = "Thanks, I've passed your details along to the Cadre team. Someone will reach out directly."
 
 CUSTOMER_SIGNAL_NOTE = "Noted for your account team, so they have this context next time you're in touch."
 

@@ -116,13 +116,19 @@ Also extract any of the following the user has volunteered about themselves or t
 ANSWER_VOICE_BASE = (
     "You are the support assistant for Cadre AI, a B2B AI strategy and implementation "
     "consultancy. Voice: professional but approachable, not overly casual and not stiff, "
-    "and always encouraging and supportive — sound like you're rooting for the person's "
-    "business, even when redirecting or admitting something is out of scope. "
+    "and always encouraging and supportive: sound like you're rooting for the person's "
+    "business, even when redirecting or admitting something is out of scope. Write like a "
+    "real person on the team dashing off a quick, thoughtful reply, not like polished "
+    "marketing copy or a template. Skip stock openers like \"Happy to help\" or \"Great "
+    "question\"; just answer. Use periods and commas the way people actually type instead "
+    "of leaning on em dashes for every aside, and let sentences vary in length instead of "
+    "sounding uniformly composed. "
     "This is a working session, not a document handoff: keep replies short (2-4 sentences, "
     "or a couple of short bullets at most) and converge on the ONE thing most relevant to "
     "what they just said, rather than covering every service, tier, or branch up front. If "
-    "narrowing down would help, ask a single short clarifying question and stop there — let "
-    "the conversation unfold turn by turn instead of front-loading everything you could say. "
+    "narrowing down would help, ask a single short clarifying question and stop there, and "
+    "let the conversation unfold turn by turn instead of front-loading everything you could "
+    "say. "
     "Answer only using the knowledge below. Do not invent services, pricing, policies, or "
     "URLs that are not present in it. If the knowledge only covers part of what was asked, "
     "answer that part and leave the rest alone rather than guessing. When the knowledge "
@@ -169,7 +175,7 @@ def _escalation_message(existing_customer: bool) -> str:
 
 
 def _partial_escalation_note(existing_customer: bool, summary: str = "") -> str:
-    detail = f" — {summary} —" if summary else ""
+    detail = f" ({summary})" if summary else ""
     return (
         f"\n\nOne part of your question{detail} is outside what I can help with directly here. "
         f"For that, the best next step is to {_escalation_cta(existing_customer)}."
@@ -186,8 +192,8 @@ PARTIAL_ESCALATION_NOTE = _partial_escalation_note(False)
 # (no webhook configured, or the POST failed) — never claim the info was sent
 # anywhere when it wasn't; fall back to the same booking link every other escalation uses.
 LEAD_DELIVERY_FALLBACK_NOTE = (
-    f"Thanks for sharing that — I wasn't able to pass it along automatically just now. "
-    f"The fastest path from here is to {ESCALATION_CTA}."
+    f"Thanks for sharing that. I wasn't able to pass it along automatically just now, "
+    f"so the fastest path from here is to {ESCALATION_CTA}."
 )
 
 # Shown for a standalone greeting (no other content in the message) instead of the
@@ -195,12 +201,12 @@ LEAD_DELIVERY_FALLBACK_NOTE = (
 # but treating it like an out-of-scope question and pushing a booking link on it
 # is needlessly heavy-handed for a simple hello.
 GREETING_RESPONSE = (
-    "Hi there! I'm the Cadre AI assistant — happy to help with questions about what Cadre "
-    "does, pricing, case studies, booking a call, and more. What can I help you with?"
+    "Hi there! I can help with questions about what Cadre does, pricing, case studies, "
+    "booking a call, that kind of thing. What can I help you with?"
 )
 EXISTING_CUSTOMER_GREETING_RESPONSE = (
-    "Hi there! Happy to help — ask me anything about your engagement, or let me know if "
-    "you'd like to explore other ways Cadre could help."
+    "Hi there! Ask me anything about your engagement, or let me know if you'd like to "
+    "explore other ways Cadre could help."
 )
 
 SUGGESTIONS_SCHEMA = {
