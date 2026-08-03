@@ -102,6 +102,8 @@ cd backend
 .venv/bin/pytest
 ```
 
+Also runs in CI (Phase 21): `.github/workflows/backend-tests.yml` on every push to `main` and every pull request. No secrets needed, since the whole suite mocks the Anthropic client.
+
 ## Manual scenario pass (real Claude — before calling any phase done)
 Manually run these six scenarios end to end (the original assessment bar — kept as-is, not renumbered as scope grew):
 1. "What does Cadre AI do, and do you work with [industry]?"

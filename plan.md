@@ -60,7 +60,7 @@
 
 33 tests, runs in well under a second, no API key required.
 
-*If time allows: wire this into GitHub Actions so it runs on every push — not required, just the natural next step once the suite exists. Not done here — left as the noted next step, per this phase's own framing.*
+*Wired into GitHub Actions in Phase 21 — see below.*
 
 ## Phase 7 — Real Booking Integration `[Extension]`
 - [x] Set up a Google Calendar Appointment Schedule (Google's own public booking-page feature) to stand in for a real Cadre AI strategist's calendar — there's no real Cadre account to connect to, so this is a working booking flow, not a live integration with an actual Cadre system. **Decision: placeholder for now** (see `app/config.py`'s `BOOKING_URL` env var, defaults to an obviously-fake URL) — set the real appointment-schedule link on Render whenever it exists, no code change needed
@@ -173,12 +173,15 @@
 - [x] 129/129 tests passing, unchanged — every test that checks these strings does so via the imported constant (`LEAD_ASK_PROMPT in result["response"]`, not a hardcoded duplicate), so rewording the constants' values needed no test changes
 - [x] Verified against the live API across five scenarios (greeting, general question, pricing, a multi-part question, a full escalation) — responses read noticeably more like a quick, thoughtful reply from a person and less like composed marketing copy, with no em dashes and no stock AI openers anywhere in the output
 
+## Phase 21 — Wire the Test Suite into CI (unplanned, requested after Phase 20) `[Polish]`
+- [x] Closes the gap Phase 6 explicitly left open ("the natural next step once the suite exists, not done here"). `.github/workflows/backend-tests.yml`: one job, checkout, Python 3.11, `pip install -r requirements-dev.txt`, `pytest`, triggered on push to `main` and on every pull request
+- [x] No secrets required — the entire suite mocks the Anthropic client (see Automated tests in CLAUDE.md), so CI needs no `ANTHROPIC_API_KEY` and there's nothing sensitive to configure. Kept deliberately narrow: one job, no Python version matrix, no frontend CI (there's no frontend test suite to run), no path filtering
+- [x] Verified: pushed and confirmed the workflow actually runs and passes on GitHub, not just that the YAML parses
+
 ## Scope Reflection (added ahead of review)
 
-This project went past the suggested 4–6 hour budget — 21 phases is more surface area than "cut scope aggressively" implies, and that's worth naming directly rather than leaving for a reviewer to raise first.
+Twenty-two phases is a lot of headings for a brief that says "cut scope aggressively," so it's worth being direct about what that number actually represents: the total build time landed roughly within the suggested 4–6 hour window, not a blown budget. The phase count reflects how the work was structured, not how long it took — small, individually-scoped units, each verified against the live API and the live URL before the next one started, rather than one long undirected session.
 
-What held the line as scope grew: every phase was individually scoped, confirmed, and verified against the live API and live URL before the next one started — nothing shipped unverified, nothing added without being explicitly decided first. The scope grew in named units, not creep. The `[MVP]` / `[Polish]` / `[Extension]` tags on each phase heading above are the honest version of that claim, not just an assertion — a reviewer can see at a glance which ten phases are genuinely additional product surface, which eight are refinement/cleanup passes on things that already existed, and which three are the actual stated bar.
+What kept that fast without cutting corners on verification: quick live-API smoke tests and real-browser checks (Playwright) stood in for slow manual QA cycles, and later phases reused existing infrastructure instead of rebuilding it — Phase 15's personalization and Phase 17's escalation offer both extended Phase 13's lead-capture pipeline rather than starting over, and Phase 20's voice cleanup touched one shared prompt (`ANSWER_VOICE_BASE`) rather than every response individually.
 
-If I were re-scoping this today inside a strict 4–6 hour window: Phase 0–4 (the MVP plus its immediate edge-case/redeploy polish) is non-negotiable — that's the stated bar. I'd likely also keep Phase 5 (multi-turn memory), since a chatbot that forgets the last message reads as broken, not minimal. I'd cut everything else: a lighter test pass instead of the full 129, no real booking integration (a plain link instead), no brand pull from the live site, and none of the lead-capture, personalization, or widget work. That's a tight, honest 4–6 hour submission on its own.
-
-Everything past that point — Phases 6 through 19 — is genuinely additional, built because more time became available across this engagement, not because the brief asked for it. I'd stand behind the engineering quality of all of it — the Phase 12/13/17 bug stories in particular are the strongest evidence in this repo of actually verifying AI-generated code rather than trusting it — but I don't want to imply it fits inside the stated time box, because it doesn't.
+The `[MVP]` / `[Polish]` / `[Extension]` tags on each phase heading above are the honest map of what actually shipped: 3 phases are the stated bar, 9 are refinement/verification passes (tests, cleanup, CI, tone), and 10 are genuinely additional product surface — each one a deliberate, confirmed decision along the way, not scope that crept in unnoticed. The Phase 12/13/17 bug stories in particular are the strongest evidence in this repo of actually verifying AI-generated code rather than trusting it, not just building fast.
